@@ -34,13 +34,25 @@ def train_bvae(
         max_epochs=trainer_config.max_epochs,
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         callbacks=[
+            LearningRateMonitor(
+                logging_interval='epoch',
+                log_momentum=True,
+                log_weight_decay=True
+            ),
             BatchSizeFinder(
                 mode="binsearch",
                 steps_per_trial=3,
                 margin=0.45
+            ),
+            LearningRateFinder(
+                mode="exponential",
+                min_lr=1e-4,
+                max_lr=1,
             )
         ]
     )
+
+    # TODO: Read dataset and determine num_hyperedges
 
     model = HypergraphBetaVAE(
         num_hyperedges=1512,
