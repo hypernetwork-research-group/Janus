@@ -32,3 +32,14 @@ class DataLoaderConfig:
 class TrainerConfig:
     max_epochs: int
     accumulate_grad_batches: int
+
+@dataclass(frozen=True, slots=True)
+class ModelSizeConfig:
+    hidden_dim: int
+    num_layers: int
+    heads: int
+
+@dataclass
+class OptimizerConfig:
+    learning_rate: float | None
+    weight_decay: float | None
