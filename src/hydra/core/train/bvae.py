@@ -35,7 +35,7 @@ def train_bvae(
     # Here we should determine the model name:
     # BVAE-HyDRA-{model_size}/vertex_encoding
 
-    model_name = f"BVAE-HyDRA-{model_size_config}{'/vertex_encoding' if vertex_encoding else ''}"
+    model_name = f"BVAE-HyDRA{'-V' if vertex_encoding else ''}-{model_size_config}"
 
     trainer = L.Trainer(
         gradient_clip_val=1.0,
