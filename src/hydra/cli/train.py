@@ -1,40 +1,14 @@
-from typing import Annotated, List
+import logging
+from typing import Annotated, List, Union
 from pathlib import Path
-from dataclasses import dataclass
 
 import typer
 
+from ..core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig
+from ..core.train.train import train_bvae, train_ddm
+
+logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
-
-@dataclass
-class DataModuleConfig:
-    p: float
-    q: float
-    alpha: float
-    walk_length: int
-    samples_per_hyperedge: int
-    data_dir: Path
-    retain_lcc: bool
-    train_split: List[str]
-    val_split: List[str]
-    predict_split: List[str]
-
-@dataclass
-class HuggingFaceDatasetsConfig:
-    dataset_name: str
-    cache_dir: Path
-
-@dataclass
-class DataLoaderConfig:
-    pin_memory: bool
-    num_workers: int
-    persistent_workers: bool
-    batch_size: int
-
-@dataclass
-class TrainerConfig:
-    max_epochs: int
-    accumulate_grad_batches: int
 
 @app.callback()
 def train_callback(
@@ -50,14 +24,15 @@ def train_callback(
     samples_per_hyperedge: Annotated[int, typer.Option("--samples-per-hyperedge", help="Number of random walks to sample per hyperedge.")] = 1,
     data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
     retain_lcc: Annotated[bool, typer.Option("--retain-lcc/--no-retain-lcc", help="Whether to retain only the largest connected component of the hypergraph.")] = True,
-    train_split: Annotated[List[str], typer.Option("--train-split", help="Dataset split(s) to use for training.")] = ["full"],
-    val_split: Annotated[List[str], typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = ["full"],
-    predict_split: Annotated[List[str], typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = ["full"],
+    train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
+    val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
+    predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
+    val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
     # DataLoaderConfig options
     pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
     num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 128,
+    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,
     # TrainerConfig options
     max_epochs: Annotated[int, typer.Option("--max-epochs", help="Maximum number of training epochs.")] = -1,
     accumulate_grad_batches: Annotated[int, typer.Option("--accumulate-grad-batches", help="Number of batches to accumulate gradients over.")] = 1,
@@ -74,7 +49,8 @@ def train_callback(
                                                     retain_lcc=retain_lcc,
                                                     train_split=train_split,
                                                     val_split=val_split,
-                                                    predict_split=predict_split)
+                                                    predict_split=predict_split,
+                                                    val_size=val_size)
     ctx.obj["dataloader_config"] = DataLoaderConfig(pin_memory=pin_memory,
                                                     num_workers=num_workers,
                                                     persistent_workers=persistent_workers,
@@ -84,38 +60,25 @@ def train_callback(
     ctx.obj["huggingface_datasets_config"] = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
                                                                      cache_dir=cache_dir)
 
-from ..core.datamodules import HypergraphDataModule
-
 @app.command()
 def bvae(ctx: typer.Context,
-         encode_nodes: Annotated[bool, typer.Option("--encode-nodes/--no-encode-nodes", help="Whether to encode nodes in the model.")] = True):
+         vertex_encoding: Annotated[bool, typer.Option("--vertex-encoding/--no-vertex-encoding", help="Whether to encode nodes in the model.")] = False):
     """Train a model on the specified dataset."""
-    typer.echo(ctx.obj)
     datamodule_config: DataModuleConfig = ctx.obj["datamodule_config"]
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
 
-    dataset = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
-                        data_dir=datamodule_config.data_dir,
-                        retain_lcc=datamodule_config.retain_lcc,
-                        cache_dir=huggingface_datasets_config.cache_dir,
-                        p=datamodule_config.p,
-                        q=datamodule_config.q,
-                        alpha=datamodule_config.alpha,
-                        walk_length=datamodule_config.walk_length,
-                        samples_per_hyperedge=datamodule_config.samples_per_hyperedge,
-                        pin_memory=dataloader_config.pin_memory,
-                        num_workers=dataloader_config.num_workers,
-                        persistent_workers=dataloader_config.persistent_workers,
-                        batch_size=dataloader_config.batch_size)
-    dataset.prepare_data()
-    dataset.setup("fit")
+    train_bvae(datamodule_config=datamodule_config,
+              dataloader_config=dataloader_config,
+              trainer_config=trainer_config,
+              huggingface_datasets_config=huggingface_datasets_config,
+              vertex_encoding=vertex_encoding)
 
 @app.command()
-def ddm(ctx: typer.Context):
+def ddm(ctx: typer.Context,
+        T: Annotated[int, typer.Option("--T", help="Number of diffusion steps.")] = 1000):
     """Train a conditional model on the specified dataset."""
-    typer.echo(ctx.obj)
     datamodule_config: DataModuleConfig = ctx.obj["datamodule_config"]
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
