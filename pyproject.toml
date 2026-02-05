@@ -1,0 +1,22 @@
+[project]
+name = "hydra"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "daqh", email = "valeriodipasq@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "datasets>=4.5.0",
+    "rich>=14.3.2",
+    "typer>=0.21.1",
+    "xgi>=0.10",
+]
+
+[project.scripts]
+hydra = "hydra.cli.app:main"
+
+[build-system]
+requires = ["uv_build>=0.9.29,<0.10.0"]
+build-backend = "uv_build"
