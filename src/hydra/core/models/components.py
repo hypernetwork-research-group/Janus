@@ -238,7 +238,7 @@ class BatchedHypergraphConvAttn(nn.Module):
             return out, Y1
         return out
 
-class HGAT(nn.Module): # TODO; Rename into Batched HGAT Layer
+class HGAT(nn.Module):
 
     def __init__(self,
                  in_channels: int,
@@ -332,8 +332,6 @@ class HypergraphDecoder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # x = self.x_adapter(x, y)
-        # y = self.y_adapter(y, y)
         h_logits = torch.einsum("taf,tbf->tabf", x, y)
         h_logits = self.final(h_logits)
         return h_logits

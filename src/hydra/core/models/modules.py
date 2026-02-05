@@ -10,6 +10,8 @@ from diffusers import DDPMScheduler
 from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_decoder, init_dit_weights
 from .components import DiT, HGAT, HypergraphDecoder
 from .utils import batch_index_contrastive_loss
+from .enums import ModelSize
+from ..configs import ModelSizeConfig
 
 DEFAULT_LR = 1e-4
 
@@ -18,12 +20,16 @@ class HypergraphBetaVAE(L.LightningModule):
     def __init__(self,
                  num_hyperedges: int,
                  kl_weight: float = 1.0,
-                 learning_rate: float = None,
+                 learning_rate: float | None = None,
+                 weight_decay: float | None = None,
+                 model_size_config: str = ModelSize.M.value,
                  encode_nodes: bool = True):
         super().__init__()
         self.num_hyperedges = num_hyperedges
         self.kl_weight = kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
+        self.weight_decay = weight_decay or 1e-5
+        self.model_size_config = ModelSize[model_size_config].cfg
         self.encode_nodes = encode_nodes
         self.save_hyperparameters()
 
@@ -33,27 +39,27 @@ class HypergraphBetaVAE(L.LightningModule):
         if self.encode_nodes:
             self.x_encoder_mu = HGAT(
                 in_channels=128,
-                hidden_channels=512,
-                num_layers=3,
-                heads=4
+                hidden_channels=self.model_size_config.hidden_dim,
+                num_layers=self.model_size_config.num_layers,
+                heads=self.model_size_config.heads
             )
             self.x_encoder_log_var = HGAT(
                 in_channels=128,
-                hidden_channels=512,
-                num_layers=3,
-                heads=4
+                hidden_channels=self.model_size_config.hidden_dim,
+                num_layers=self.model_size_config.num_layers,
+                heads=self.model_size_config.heads
             )
         self.y_encoder_mu = HGAT(
             in_channels=128,
-            hidden_channels=512,
-            num_layers=3,
-            heads=4
+            hidden_channels=self.model_size_config.hidden_dim,
+            num_layers=self.model_size_config.num_layers,
+            heads=self.model_size_config.heads
         )
         self.y_encoder_log_var = HGAT(
             in_channels=128,
-            hidden_channels=512,
-            num_layers=3,
-            heads=4
+            hidden_channels=self.model_size_config.hidden_dim,
+            num_layers=self.model_size_config.num_layers,
+            heads=self.model_size_config.heads
         )
         self.y_emb = nn.Embedding(
             num_embeddings=self.num_hyperedges,
@@ -67,9 +73,9 @@ class HypergraphBetaVAE(L.LightningModule):
         if self.encode_nodes:
             self.node_features_decoder = HGAT(
                 in_channels=128,
-                hidden_channels=512,
-                num_layers=3,
-                heads=4
+                hidden_channels=self.model_size_config.hidden_dim,
+                num_layers=self.model_size_config.num_layers,
+                heads=self.model_size_config.heads
             )
 
         nn.init.constant_(self.y_emb.weight, 0.0)
@@ -86,7 +92,7 @@ class HypergraphBetaVAE(L.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(),
                                       lr=self.learning_rate,
-                                      weight_decay=1e-5)
+                                      weight_decay=self.weight_decay)
         return optimizer
 
     def on_train_epoch_end(self):
