@@ -10,9 +10,10 @@ def train_bvae(
     dataloader_config: DataLoaderConfig,
     trainer_config: TrainerConfig,
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
-    vertex_encoding: bool,
     model_size_config: ModelSizeConfig,
     optimizer_config: OptimizerConfig,
+    vertex_encoding: bool,
+    kl_weight: float,
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
@@ -84,7 +85,7 @@ def train_bvae(
 
     model = HypergraphBetaVAE(
         num_hyperedges=1512,
-        kl_weight=1e-6,
+        kl_weight=kl_weight,
         learning_rate=optimizer_config.learning_rate,
         weight_decay=optimizer_config.weight_decay,
         encode_nodes=vertex_encoding,
