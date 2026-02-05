@@ -46,7 +46,7 @@ def metropolis_hastings_biased_random_walk(args):
                     walk_touched_nodes.update(touched_nodes)
                 walk.append(current) # Insert at the beginning
             walks.append({
-                "walk": sorted(walk),
+                "touched_hyperedges": sorted(walk),
                 "touched_nodes": sorted(list(walk_touched_nodes))
             })
     return walks
@@ -66,3 +66,47 @@ def patch_nodes(hypergraph: xgi.Hypergraph, touched_nodes: list, target_num_node
     else:
         _temp_nodes = sorted(_temp_nodes)
     return _temp_nodes, mask
+
+import numpy as np
+from scipy import sparse
+
+def hypergraph_laplacian_zhou(A: sparse.spmatrix, w=None, eps=1e-12):
+    """
+    Build the normalized hypergraph Laplacian Δ = I - Dv^{-1/2} A W De^{-1} A^T Dv^{-1/2}
+    from incidence matrix A (n_vertices x n_hyperedges).
+
+    A: scipy.sparse array/matrix (CSR/CSC/COO ok)
+    w: optional length-m array of hyperedge weights (defaults to 1)
+    """
+    A = A.tocsr().astype(float)
+    n, m = A.shape
+
+    # hyperedge sizes δ(e) = sum_v A[v,e]
+    delta = np.asarray(A.sum(axis=0)).ravel()
+    if np.any(delta == 0):
+        raise ValueError("Found an empty hyperedge (size 0). Remove it or fix A.")
+
+    # hyperedge weights W (default all ones)
+    if w is None:
+        w = np.ones(m, dtype=float)
+    else:
+        w = np.asarray(w, dtype=float).ravel()
+        if w.shape != (m,):
+            raise ValueError(f"w must have shape ({m},), got {w.shape}")
+
+    # vertex degrees d(v) = sum_{e} w(e) * A[v,e]
+    d = np.asarray(A @ w).ravel()
+    if np.any(d <= 0):
+        # If isolated vertices exist, normalized Laplacian needs special handling
+        raise ValueError("Found vertex with non-positive degree; check incidence/weights.")
+
+    inv_sqrt_d = 1.0 / np.sqrt(d + eps)
+    inv_delta  = 1.0 / (delta + eps)
+
+    Dv_inv_sqrt = sparse.diags(inv_sqrt_d, format="csr")
+    W           = sparse.diags(w,          format="csr")
+    De_inv      = sparse.diags(inv_delta,  format="csr")
+
+    Theta = Dv_inv_sqrt @ A @ W @ De_inv @ A.T @ Dv_inv_sqrt
+    Delta = sparse.eye(n, format="csr") - Theta
+    return Delta
