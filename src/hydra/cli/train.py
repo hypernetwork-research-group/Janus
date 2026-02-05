@@ -4,8 +4,11 @@ from pathlib import Path
 
 import typer
 
-from ..core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig
-from ..core.train.train import train_bvae, train_ddm
+from ..core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, OptimizerConfig
+from ..core.train.bvae import train_bvae
+from ..core.train.ddm import train_ddm
+from ..core.models.enums import ModelSize
+from ..core.configs import ModelSizeConfig
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
@@ -17,8 +20,8 @@ def train_callback(
     dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Cache directory for datasets.")] = Path("./cache"),
     # DataModuleConfig options
-    p: Annotated[float, typer.Option("-p", help="Biased random walk p parameter, controlling likelihood of immediately revisiting a node.")] = 1.0,
-    q: Annotated[float, typer.Option("-q", help="Biased random walk q parameter, controlling likelihood of visiting nodes further away from the source node.")] = 1.0,
+    p: Annotated[float, typer.Option("-p", help="Biased random walk p parameter, controlling likelihood of immediately revisiting a node.")] = 2.0,
+    q: Annotated[float, typer.Option("-q", help="Biased random walk q parameter, controlling likelihood of visiting nodes further away from the source node.")] = 0.5,
     alpha: Annotated[float, typer.Option("--alpha", help="Metropolis-Hastings acceptance probability parameter.")] = 0.0,
     walk_length: Annotated[int, typer.Option("--walk-length", help="Length of each random walk.")] = 256,
     samples_per_hyperedge: Annotated[int, typer.Option("--samples-per-hyperedge", help="Number of random walks to sample per hyperedge.")] = 1,
@@ -32,10 +35,16 @@ def train_callback(
     pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
     num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,
+    batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
     # TrainerConfig options
     max_epochs: Annotated[int, typer.Option("--max-epochs", help="Maximum number of training epochs.")] = -1,
     accumulate_grad_batches: Annotated[int, typer.Option("--accumulate-grad-batches", help="Number of batches to accumulate gradients over.")] = 1,
+    # ModelSizeConfig options
+    model_size: Annotated[ModelSize, typer.Option("--model-size", help="Size of the model to use.")] = ModelSize.M,
+    # OptimizerConfig options
+    # Learning rate is --learning-rate or -lr
+    learning_rate: Annotated[float | None, typer.Option("--learning-rate", "-lr", help="Learning rate for the optimizer. If not set, Learning Rate Finder will be used to determine it.")] = None,
+    weight_decay: Annotated[float | None, typer.Option("--weight-decay", help="Weight decay (L2 regularization) for the optimizer. If not set, model defaults are used.")] = None,
 ):
     """Common options for data loading."""
     # ctx.obj is the standard place to store shared state across commands :contentReference[oaicite:3]{index=3}
@@ -59,6 +68,9 @@ def train_callback(
                                               accumulate_grad_batches=accumulate_grad_batches)
     ctx.obj["huggingface_datasets_config"] = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
                                                                      cache_dir=cache_dir)
+    ctx.obj["model_size_config"] = model_size.value
+    ctx.obj["optimizer_config"] = OptimizerConfig(learning_rate=learning_rate,
+                                                  weight_decay=weight_decay)
 
 @app.command()
 def bvae(ctx: typer.Context,
@@ -68,11 +80,14 @@ def bvae(ctx: typer.Context,
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
-
+    model_size_config: ModelSizeConfig = ctx.obj["model_size_config"]
+    optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
     train_bvae(datamodule_config=datamodule_config,
               dataloader_config=dataloader_config,
               trainer_config=trainer_config,
               huggingface_datasets_config=huggingface_datasets_config,
+              model_size_config=model_size_config,
+              optimizer_config=optimizer_config,
               vertex_encoding=vertex_encoding)
 
 @app.command()
