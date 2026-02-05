@@ -6,7 +6,7 @@ from ..configs import ModelSizeConfig
 class ModelSize(Enum):
 
     @staticmethod
-    def _generate_next_value_(name, start, count, last_values):
+    def _generate_next_value_(name, start, count, last_values) -> str:
         return name.upper()
 
     S = auto()

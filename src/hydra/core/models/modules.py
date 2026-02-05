@@ -11,7 +11,6 @@ from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_d
 from .components import DiT, HGAT, HypergraphDecoder
 from .utils import batch_index_contrastive_loss
 from .enums import ModelSize
-from ..configs import ModelSizeConfig
 
 DEFAULT_LR = 1e-4
 
