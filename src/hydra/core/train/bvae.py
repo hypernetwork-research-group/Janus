@@ -1,8 +1,8 @@
 import lightning as L
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, EarlyStopping, ModelCheckpoint, LambdaCallback
 
 from ..models.modules import HypergraphBetaVAE
-from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig
+from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
 from ..data.datamodule import HypergraphDataModule
 
 def train_bvae(
@@ -10,7 +10,9 @@ def train_bvae(
     dataloader_config: DataLoaderConfig,
     trainer_config: TrainerConfig,
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
-    vertex_encoding: bool
+    vertex_encoding: bool,
+    model_size_config: ModelSizeConfig,
+    optimizer_config: OptimizerConfig,
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
@@ -30,23 +32,49 @@ def train_bvae(
                         batch_size=dataloader_config.batch_size,
                         val_size=datamodule_config.val_size,)
 
+    # Here we should determine the model name:
+    # BVAE-HyDRA-{model_size}/vertex_encoding
+
+    model_name = f"BVAE-HyDRA-{model_size_config}{'/vertex_encoding' if vertex_encoding else ''}"
+
     trainer = L.Trainer(
+        gradient_clip_val=1.0,
+        default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}",
         max_epochs=trainer_config.max_epochs,
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
+        log_every_n_steps=10, # TODO: Add this to trainer configuration
         callbacks=[
+            EarlyStopping(
+                monitor="validation/loss",
+                patience=50, #
+                mode="min",
+                check_on_train_epoch_end=False, # Check only at the end of validation
+            ),
+            # Save last every 50 epochs
+            ModelCheckpoint(
+                filename="last",
+                every_n_epochs=10, #
+            ),
+            ModelCheckpoint(
+                mode="min",
+                monitor="validation/loss",
+                filename="best",
+                save_top_k=1,
+                every_n_epochs=10, #
+            ),
             LearningRateMonitor(
                 logging_interval='epoch',
                 log_momentum=True,
                 log_weight_decay=True
-            ),
+            ) if optimizer_config.learning_rate is None else LambdaCallback(),
             BatchSizeFinder(
                 mode="binsearch",
                 steps_per_trial=3,
                 margin=0.45
-            ),
+            ) if dataloader_config.batch_size is None else LambdaCallback(),
             LearningRateFinder(
                 mode="exponential",
-                min_lr=1e-4,
+                min_lr=5e-5,
                 max_lr=1,
             )
         ]
@@ -57,16 +85,10 @@ def train_bvae(
     model = HypergraphBetaVAE(
         num_hyperedges=1512,
         kl_weight=1e-6,
-        learning_rate=1e-3,
-        encode_nodes=vertex_encoding)
+        learning_rate=optimizer_config.learning_rate,
+        weight_decay=optimizer_config.weight_decay,
+        encode_nodes=vertex_encoding,
+        model_size_config=model_size_config)
 
     trainer.fit(model, datamodule=datamodule)
 
-def train_ddm(
-    datamodule_config: DataModuleConfig,
-    dataloader_config: DataLoaderConfig,
-    trainer_config: TrainerConfig,
-    huggingface_datasets_config: HuggingFaceDatasetsConfig,
-    T: int,
-):
-    pass
