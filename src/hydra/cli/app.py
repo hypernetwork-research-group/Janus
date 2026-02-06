@@ -5,7 +5,7 @@ import logging
 import rich.logging
 
 from .train.app import app as train_app
-from .sample import app as sample_app
+from .sample.app import app as sample_app
 
 logger = logging.getLogger(__name__)
 
