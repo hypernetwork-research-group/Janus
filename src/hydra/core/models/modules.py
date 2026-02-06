@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import logging
 
 from diffusers import DDPMScheduler
+from lightning.pytorch.callbacks import LearningRateFinder, LambdaCallback, EarlyStopping, ModelCheckpoint
 
 from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_decoder, init_dit_weights
 from .components import DiT, HGAT, HypergraphDecoder
@@ -22,7 +23,8 @@ class HypergraphBetaVAE(L.LightningModule):
                  learning_rate: float | None = None,
                  weight_decay: float | None = None,
                  model_size_config: str = ModelSize.M.value,
-                 encode_nodes: bool = True):
+                 encode_nodes: bool = True,
+                 patience: int = 100):
         super().__init__()
         self.num_hyperedges = num_hyperedges
         self.kl_weight = kl_weight
@@ -30,48 +32,74 @@ class HypergraphBetaVAE(L.LightningModule):
         self.weight_decay = weight_decay or 1e-5
         self.model_size_config = ModelSize[model_size_config].cfg
         self.encode_nodes = encode_nodes
+        self.patience = patience
         self.save_hyperparameters()
 
-    def configure_model(self):
+    def configure_callbacks(self):
+        return [
+            ModelCheckpoint(
+                filename="last",
+                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+            ),
+            ModelCheckpoint(
+                mode="min",
+                monitor="validation/loss",
+                filename="best",
+                save_top_k=1,
+                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+            ),
+            EarlyStopping(
+                monitor="validation/loss",
+                patience=self.patience,
+                mode="min",
+                check_on_train_epoch_end=False, # Check only at the end of validation
+            ),
+        ]
 
+    def setup(self, stage):
+        # Get feature dimensions from datamodule
+        self.node_feature_dim = self.trainer.datamodule.node_feature_dim
+        self.hyperedge_feature_dim = self.trainer.datamodule.hyperedge_feature_dim
+
+    def configure_model(self):
         # Encoder
         if self.encode_nodes:
             self.x_encoder_mu = HGAT(
-                in_channels=128,
+                in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
             self.x_encoder_log_var = HGAT(
-                in_channels=128,
+                in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
         self.y_encoder_mu = HGAT(
-            in_channels=128,
+            in_channels=self.hyperedge_feature_dim,
             hidden_channels=self.model_size_config.hidden_dim,
             num_layers=self.model_size_config.num_layers,
             heads=self.model_size_config.heads
         )
         self.y_encoder_log_var = HGAT(
-            in_channels=128,
+            in_channels=self.hyperedge_feature_dim,
             hidden_channels=self.model_size_config.hidden_dim,
             num_layers=self.model_size_config.num_layers,
             heads=self.model_size_config.heads
         )
         self.y_emb = nn.Embedding(
             num_embeddings=self.num_hyperedges,
-            embedding_dim=128
+            embedding_dim=self.hyperedge_feature_dim
         )
         # Decoder
         self.hypergraph_decoder = HypergraphDecoder(
-            in_channels=128,
+            in_channels=self.hyperedge_feature_dim,
             num_classes=2
         )
         if self.encode_nodes:
             self.node_features_decoder = HGAT(
-                in_channels=128,
+                in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
