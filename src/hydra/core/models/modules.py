@@ -24,7 +24,9 @@ class HypergraphBetaVAE(L.LightningModule):
                  weight_decay: float | None = None,
                  model_size_config: str = ModelSize.M.value,
                  encode_nodes: bool = True,
-                 patience: int = 100):
+                 patience: int = 100,
+                 num_node_features: int = 128,
+                 num_hyperedge_features: int = 128):
         super().__init__()
         self.num_hyperedges = num_hyperedges
         self.kl_weight = kl_weight
@@ -33,6 +35,8 @@ class HypergraphBetaVAE(L.LightningModule):
         self.model_size_config = ModelSize[model_size_config].cfg
         self.encode_nodes = encode_nodes
         self.patience = patience
+        self.node_feature_dim = num_node_features
+        self.hyperedge_feature_dim = num_hyperedge_features
         self.save_hyperparameters()
 
     def configure_callbacks(self):
@@ -55,11 +59,6 @@ class HypergraphBetaVAE(L.LightningModule):
                 check_on_train_epoch_end=False, # Check only at the end of validation
             ),
         ]
-
-    def setup(self, stage):
-        # Get feature dimensions from datamodule
-        self.node_feature_dim = self.trainer.datamodule.node_feature_dim
-        self.hyperedge_feature_dim = self.trainer.datamodule.hyperedge_feature_dim
 
     def configure_model(self):
         # Encoder
@@ -218,6 +217,7 @@ class HypergraphBetaVAE(L.LightningModule):
         y = batch['hyperedge_features']
         h = batch['incidence_matrix']
         s = batch['touched_hyperedges']
+        m = batch['nodes_mask']             # [B, num_nodes] TODO: Use this
 
         y_s = self.y_emb(s)
         y = y + y_s
@@ -257,7 +257,10 @@ class HypergraphBetaVAE(L.LightningModule):
         return loss
 
     def predict_step(self, batch, batch_idx):
-        x, y, h, m, s, n = batch
+        x = batch['node_features']
+        y = batch['hyperedge_features']
+        h = batch['incidence_matrix']
+        s = batch['touched_hyperedges']
 
         y_s = self.y_emb(s)
         y = y + y_s
@@ -267,7 +270,6 @@ class HypergraphBetaVAE(L.LightningModule):
         return h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
 class DiffusionTransformer(L.LightningModule):
-
 
     # TODO: Pass sampling mode ddpm / ddim
     def __init__(self,
