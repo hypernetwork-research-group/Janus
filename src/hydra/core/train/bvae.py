@@ -4,7 +4,7 @@ from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, Lea
 
 from ..models.modules import HypergraphBetaVAE
 from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
-from ..data.datamodule import HypergraphDataModule
+from ..data.datamodules import HypergraphDataModule
 
 def train_bvae(
     datamodule_config: DataModuleConfig,
@@ -39,13 +39,18 @@ def train_bvae(
     # BVAE-HyDRA-{model_size}/vertex_encoding
 
     model_name = f"BVAE-HyDRA{'-V' if vertex_encoding else ''}-{model_size_config}"
+    default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"
 
     trainer = L.Trainer(
-        default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}",
+        default_root_dir=default_root_dir,
         max_epochs=trainer_config.max_epochs,
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         log_every_n_steps=10, # TODO: Add this to trainer configuration
         check_val_every_n_epoch=1,
+        logger=TensorBoardLogger(
+            save_dir=default_root_dir, # base path
+            name="logs",  # replaces the default "lightning_logs"
+        ),
         callbacks=[
             # Save last every 50 epochs
             LearningRateMonitor(

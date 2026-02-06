@@ -3,7 +3,7 @@ from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, Lea
 
 from ..models.modules import HypergraphBetaVAE
 from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
-from ..data.datamodule import HypergraphDataModule
+from ..data.datamodules import HypergraphDataModule
 
 def train_ddm(
     datamodule_config: DataModuleConfig,
