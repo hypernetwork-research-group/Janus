@@ -46,7 +46,7 @@ def train_callback(
     learning_rate: Annotated[float | None, typer.Option("--learning-rate", "-lr", help="Learning rate for the optimizer. If not set, Learning Rate Finder will be used to determine it.")] = None,
     weight_decay: Annotated[float | None, typer.Option("--weight-decay", help="Weight decay (L2 regularization) for the optimizer. If not set, model defaults are used.")] = None,
     # EarlyStoppingConfig options
-    early_stopping_patience: Annotated[int, typer.Option("--patience", help="Number of epochs with no improvement after which training will be stopped.")] = 50,
+    early_stopping_patience: Annotated[int, typer.Option("--patience", help="Number of epochs with no improvement after which training will be stopped.")] = 100,
 ):
     """Common options for data loading."""
     # ctx.obj is the standard place to store shared state across commands :contentReference[oaicite:3]{index=3}
