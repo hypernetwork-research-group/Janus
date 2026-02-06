@@ -47,29 +47,12 @@ def train_bvae(
         log_every_n_steps=10, # TODO: Add this to trainer configuration
         check_val_every_n_epoch=1,
         callbacks=[
-            EarlyStopping(
-                monitor="validation/loss",
-                patience=early_stopping_config.patience,
-                mode="min",
-                check_on_train_epoch_end=False, # Check only at the end of validation
-            ),
             # Save last every 50 epochs
-            ModelCheckpoint(
-                filename="last",
-                every_n_epochs=10, #
-            ),
-            ModelCheckpoint(
-                mode="min",
-                monitor="validation/loss",
-                filename="best",
-                save_top_k=1,
-                every_n_epochs=10, #
-            ),
             LearningRateMonitor(
                 logging_interval='epoch',
                 log_momentum=True,
                 log_weight_decay=True
-            ) if optimizer_config.learning_rate is None else LambdaCallback(),
+            ),
             BatchSizeFinder(
                 mode="binsearch",
                 steps_per_trial=3,
@@ -80,7 +63,7 @@ def train_bvae(
                 min_lr=5e-5,
                 max_lr=1,
                 num_training_steps=300,
-            )
+            )  if optimizer_config.learning_rate is None else LambdaCallback(),
         ]
     )
 
@@ -92,7 +75,9 @@ def train_bvae(
         learning_rate=optimizer_config.learning_rate,
         weight_decay=optimizer_config.weight_decay,
         encode_nodes=vertex_encoding,
-        model_size_config=model_size_config)
+        model_size_config=model_size_config,
+        patience=early_stopping_config.patience,
+    )
 
     trainer.fit(model, datamodule=datamodule)
 
