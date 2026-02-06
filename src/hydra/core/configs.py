@@ -24,9 +24,9 @@ class HuggingFaceDatasetsConfig:
 @dataclass
 class DataLoaderConfig:
     pin_memory: bool
-    num_workers: int
+    num_workers: int | None
     persistent_workers: bool
-    batch_size: int
+    batch_size: int | None
 
 @dataclass
 class TrainerConfig:
@@ -43,3 +43,7 @@ class ModelSizeConfig:
 class OptimizerConfig:
     learning_rate: float | None
     weight_decay: float | None
+
+@dataclass
+class EarlyStoppingConfig:
+    patience: int
