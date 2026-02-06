@@ -1,6 +1,5 @@
 import typer
 
-from .app import app
 
 @app.command()
 def ddm(ctx: typer.Context):
