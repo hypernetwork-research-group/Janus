@@ -1,8 +1,9 @@
 import lightning as L
+from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, EarlyStopping, ModelCheckpoint, LambdaCallback
 
 from ..models.modules import HypergraphBetaVAE
-from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
+from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
 from ..data.datamodule import HypergraphDataModule
 
 def train_bvae(
@@ -12,6 +13,7 @@ def train_bvae(
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
     model_size_config: ModelSizeConfig,
     optimizer_config: OptimizerConfig,
+    early_stopping_config: EarlyStoppingConfig,
     vertex_encoding: bool,
     kl_weight: float,
 ):
@@ -30,7 +32,7 @@ def train_bvae(
                         pin_memory=dataloader_config.pin_memory,
                         num_workers=dataloader_config.num_workers,
                         persistent_workers=dataloader_config.persistent_workers,
-                        batch_size=dataloader_config.batch_size,
+                        batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
                         val_size=datamodule_config.val_size,)
 
     # Here we should determine the model name:
@@ -39,15 +41,15 @@ def train_bvae(
     model_name = f"BVAE-HyDRA{'-V' if vertex_encoding else ''}-{model_size_config}"
 
     trainer = L.Trainer(
-        gradient_clip_val=1.0,
         default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}",
         max_epochs=trainer_config.max_epochs,
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         log_every_n_steps=10, # TODO: Add this to trainer configuration
+        check_val_every_n_epoch=1,
         callbacks=[
             EarlyStopping(
                 monitor="validation/loss",
-                patience=100, # TODO: Add this to trainer configuration
+                patience=early_stopping_config.patience,
                 mode="min",
                 check_on_train_epoch_end=False, # Check only at the end of validation
             ),
@@ -77,6 +79,7 @@ def train_bvae(
                 mode="exponential",
                 min_lr=5e-5,
                 max_lr=1,
+                num_training_steps=300,
             )
         ]
     )

@@ -94,6 +94,13 @@ class HypergraphBetaVAE(L.LightningModule):
                                       weight_decay=self.weight_decay)
         return optimizer
 
+    def configure_gradient_clipping(self, optimizer, gradient_clip_val = None, gradient_clip_algorithm = None):
+        self.clip_gradients(
+            optimizer,
+            gradient_clip_val=gradient_clip_val or 1.0,
+            gradient_clip_algorithm=gradient_clip_algorithm or "norm",
+        )
+
     def on_train_epoch_end(self):
         if self.current_epoch % 50 == 0:
             # Log weights
