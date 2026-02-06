@@ -52,7 +52,6 @@ def sample_bvae(
                 if len(hyperedges) >= 1512:
                     break
                 nodes = torch.nonzero(col).squeeze().tolist()
-                print(nodes)
                 if isinstance(nodes, int):
                     nodes = [nodes]
                 if len(nodes) < 1:
