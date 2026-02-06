@@ -47,7 +47,7 @@ def train_bvae(
         callbacks=[
             EarlyStopping(
                 monitor="validation/loss",
-                patience=100, #
+                patience=100, # TODO: Add this to trainer configuration
                 mode="min",
                 check_on_train_epoch_end=False, # Check only at the end of validation
             ),
