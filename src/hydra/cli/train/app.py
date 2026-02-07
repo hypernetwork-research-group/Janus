@@ -72,7 +72,6 @@ def train_callback(
                                                   weight_decay=weight_decay)
     ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=early_stopping_patience)
 
-from hydra.core.configs import ModelSizeConfig
 from hydra.core.train.bvae import train_bvae
 
 @app.command()
@@ -109,3 +108,10 @@ def ddm(ctx: typer.Context,
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
+    optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
+    train_ddm(datamodule_config=datamodule_config,
+              dataloader_config=dataloader_config,
+              trainer_config=trainer_config,
+              optimizer_config=optimizer_config,
+              huggingface_datasets_config=huggingface_datasets_config,
+              T=T)
