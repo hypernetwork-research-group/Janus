@@ -13,6 +13,8 @@ from .components import DiT, HGAT, HypergraphDecoder
 from .utils import batch_index_contrastive_loss
 from .enums import ModelSize
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_LR = 1e-4
 
 class HypergraphBetaVAE(L.LightningModule):
@@ -23,7 +25,7 @@ class HypergraphBetaVAE(L.LightningModule):
                  learning_rate: float | None = None,
                  weight_decay: float | None = None,
                  model_size_config: str = ModelSize.M.value,
-                 encode_nodes: bool = True,
+                 vertex_encoding: bool = True,
                  patience: int = 100,
                  num_node_features: int = 128,
                  num_hyperedge_features: int = 128,
@@ -34,7 +36,7 @@ class HypergraphBetaVAE(L.LightningModule):
         self.learning_rate = learning_rate or DEFAULT_LR
         self.weight_decay = weight_decay or 1e-5
         self.model_size_config = ModelSize(model_size_config).cfg
-        self.encode_nodes = encode_nodes
+        self.vertex_encoding = vertex_encoding
         self.patience = patience
         self.node_feature_dim = num_node_features
         self.hyperedge_feature_dim = num_hyperedge_features
@@ -64,7 +66,7 @@ class HypergraphBetaVAE(L.LightningModule):
 
     def configure_model(self):
         # Encoder
-        if self.encode_nodes:
+        if self.vertex_encoding:
             self.x_encoder_mu = HGAT(
                 in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
@@ -98,22 +100,23 @@ class HypergraphBetaVAE(L.LightningModule):
             in_channels=self.latent_dim,
             num_classes=2
         )
-        if self.encode_nodes:
+        if self.vertex_encoding:
             self.node_features_decoder = HGAT(
                 in_channels=self.latent_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
+                out_channels=self.node_feature_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
 
         # Initialize parameters
-        if self.encode_nodes:
+        if self.vertex_encoding:
             init_hypergraph_encoder(self.x_encoder_mu)
             init_hypergraph_encoder(self.x_encoder_log_var)
         init_hypergraph_encoder(self.y_encoder_mu)
         init_hypergraph_encoder(self.y_encoder_log_var)
         init_hypergraph_decoder(self.hypergraph_decoder)
-        if self.encode_nodes:
+        if self.vertex_encoding:
             init_hypergraph_encoder(self.node_features_decoder)
 
     def configure_optimizers(self):
@@ -140,7 +143,7 @@ class HypergraphBetaVAE(L.LightningModule):
                 )
 
     def forward(self, x: torch.Tensor, y: torch.Tensor, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor]:
-        if self.encode_nodes:
+        if self.vertex_encoding:
             x_mu = self.x_encoder_mu(x, h)
             x_log_var = self.x_encoder_log_var(x, h)
             x_z = x_mu + torch.exp(0.5 * x_log_var) * torch.randn_like(x_log_var)
@@ -154,7 +157,7 @@ class HypergraphBetaVAE(L.LightningModule):
         y_log_var = self.y_encoder_log_var(y, dual_h)
         y_z = y_mu + torch.exp(0.5 * y_log_var) * torch.randn_like(y_log_var)
 
-        if self.encode_nodes:
+        if self.vertex_encoding:
             x_r = self.node_features_decoder(x_z, h)
         else:
             x_r = None
@@ -173,7 +176,7 @@ class HypergraphBetaVAE(L.LightningModule):
 
         # From here, x and y are in the encoded space
 
-        if self.encode_nodes:
+        if self.vertex_encoding:
             x_kl_loss = -0.5 * (1 + x_log_var - x_mu.pow(2) - x_log_var.exp()).sum(dim=(1, 2)).mean()
             self.log("training/x_kl_loss", x_kl_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         else:
@@ -189,16 +192,16 @@ class HypergraphBetaVAE(L.LightningModule):
         ).sum(dim=(1, 2)).mean()
         self.log("training/reconstruction_loss", reconstruction_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
 
-        if self.encode_nodes:
-            x_recon_loss = batch_index_contrastive_loss(x_r, temperature=1.0) # TODO: add mask on nodes that are not part of the hypergraph
+        if self.vertex_encoding:
+            x_recon_loss = batch_index_contrastive_loss(x_r, m, temperature=1.0) # TODO: add mask on nodes that are not part of the hypergraph
             self.log("training/x_contrastive_loss", x_recon_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         else:
             x_recon_loss = 0.0
 
-        if self.encode_nodes and self.global_step % 2:
+        if self.vertex_encoding and self.global_step % 2:
             # Detach decoder 1
             x_recon_loss = x_recon_loss.detach()
-        elif self.encode_nodes:
+        elif self.vertex_encoding:
             # Detach decoder 2
             reconstruction_loss = reconstruction_loss.detach()
 
@@ -218,7 +221,7 @@ class HypergraphBetaVAE(L.LightningModule):
 
         # From here, x and y are in the encoded space
 
-        if self.encode_nodes:
+        if self.vertex_encoding:
             x_kl_loss = -0.5 * (1 + x_log_var - x_mu.pow(2) - x_log_var.exp()).sum(dim=(1, 2)).mean()
             self.log("validation/x_kl_loss", x_kl_loss.item(), prog_bar=False, on_step=False, on_epoch=True)
         else:
@@ -234,8 +237,8 @@ class HypergraphBetaVAE(L.LightningModule):
         ).sum(dim=(1, 2)).mean()
         self.log("validation/reconstruction_loss", reconstruction_loss.item(), prog_bar=False, on_step=False, on_epoch=True)
 
-        if self.encode_nodes:
-            x_recon_loss = batch_index_contrastive_loss(x_r, temperature=1.0)
+        if self.vertex_encoding:
+            x_recon_loss = batch_index_contrastive_loss(x_r, m, temperature=1.0)
             self.log("validation/x_contrastive_loss", x_recon_loss.item(), prog_bar=False, on_step=False, on_epoch=True)
         else:
             x_recon_loss = 0.0
@@ -257,21 +260,26 @@ class HypergraphBetaVAE(L.LightningModule):
 
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
+from pathlib import Path
+
 class DiffusionTransformer(L.LightningModule):
 
     # TODO: Pass sampling mode ddpm / ddim
     def __init__(self,
                  T: int,
-                 tau: int = 1,
+                 bvae_ckpt: str,
                  scheduler_type: str = "cosine",
-                 learning_rate: float = DEFAULT_LR,
-                 bvae_version: int = 0):
+                 learning_rate: float | None = None,
+                 model_size_config: str = ModelSize.M.value,):
         super().__init__()
-        self.T = T
-        self.tau = tau
+        self.bvae_ckpt = bvae_ckpt
         self.scheduler_type = scheduler_type
         self.learning_rate = learning_rate or DEFAULT_LR
-        self.bvae_ckpt = f"logs/{dataset_name}/bvae/version_{bvae_version}/checkpoints/best.ckpt"
+        self.model_size_config = ModelSize(model_size_config).cfg
+        self.train_noise_scheduler = DDPMScheduler(
+            num_train_timesteps=T,
+        )
+        self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
         self.save_hyperparameters()
 
     def on_train_epoch_end(self):
@@ -290,43 +298,44 @@ class DiffusionTransformer(L.LightningModule):
     def on_train_epoch_start(self):
         self.bvae.eval()  # keep in eval mode
 
+    def configure_callbacks(self):
+        return [
+            ModelCheckpoint(
+                filename="last",
+                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+            ),
+            ModelCheckpoint(
+                mode="min",
+                monitor="validation/loss",
+                filename="best",
+                save_top_k=1,
+                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+            ),
+        ]
+
     def configure_model(self):
-        logging.info(f"🔧 Loading BVAE from checkpoint: {self.bvae_ckpt}")
-        self.bvae = HypergraphBetaVAE.load_from_checkpoint(self.bvae_ckpt, map_location="cpu")
+        self.bvae = HypergraphBetaVAE.load_from_checkpoint(self.bvae_ckpt,
+                                                           map_location="cpu",
+                                                           weights_only=False)
         self.bvae.freeze()
 
-        logging.info("🔧 Configuring the model")
-        if self.scheduler_type == "linear":
-            self.scheduler = LinearScheduler(
-                self.T,
-                device="cuda:0" # TODO: remove hardcoding
-            )
-        elif self.scheduler_type == "cosine":
-            self.scheduler = CosineScheduler(
-                self.T,
-                device="cuda:0" # TODO: remove hardcoding
-            )
-        else:
-            raise ValueError(f"Unknown scheduler type: {self.scheduler_type}")
-        self.gaussian_sampler = GaussianSampler(self.scheduler)
-
-        if self.bvae.encode_nodes:
+        if self.bvae.vertex_encoding:
             self.vertices_dit = DiT(
-                in_channels=128,
-                hidden_channels=512,
-                num_blocks=4,
-                num_heads=4,
+                in_channels=self.bvae.latent_dim,
+                hidden_channels=self.model_size_config.hidden_dim,
+                num_blocks=self.model_size_config.num_layers,
+                num_heads=self.model_size_config.heads,
                 cross_attention=True
             )
         self.hyperedges_dit = DiT(
-            in_channels=128,
-            hidden_channels=512,
-            num_blocks=4,
-            num_heads=4,
+            in_channels=self.bvae.latent_dim,
+            hidden_channels=self.model_size_config.hidden_dim,
+            num_blocks=self.model_size_config.num_layers,
+            num_heads=self.model_size_config.heads,
             cross_attention=True
         )
 
-        if self.bvae.encode_nodes:
+        if self.bvae.vertex_encoding:
             init_dit_weights(self.vertices_dit)
         init_dit_weights(self.hyperedges_dit)
 
@@ -337,7 +346,7 @@ class DiffusionTransformer(L.LightningModule):
         return optimizer
 
     def forward(self, z_x: torch.Tensor, z_y: torch.Tensor, t: torch.Tensor):
-        if self.bvae.encode_nodes:
+        if self.bvae.vertex_encoding:
             x_v_pred, _ = self.vertices_dit(z_x, t, z_y)
         else:
             x_v_pred = None
@@ -345,54 +354,69 @@ class DiffusionTransformer(L.LightningModule):
         return x_v_pred, y_v_pred
 
     def training_step(self, batch, batch_idx):
-        x, y, h, m, s, n = batch
-        B = h.size(0)
+        x = batch['node_features']
+        y = batch['hyperedge_features']
+        h = batch['incidence_matrix']
+
+        B, N, C = x.size()
+        _, M, _ = y.size()
+
         with torch.no_grad():
-            y = y + self.bvae.y_emb(s)
             _, _, x_z, y_z, _, _, _, _ = self.bvae.forward(x, y, h) # Encode
 
-        ts = self.scheduler.random_timesteps((B, 1), device=self.device)
+        t = torch.randint(0,
+                          self.train_noise_scheduler.config.num_train_timesteps,
+                          (B, 1),
+                          device=self.device,
+                          dtype=torch.int64)
 
-        if self.bvae.encode_nodes:
-            x_t, x_v = self.gaussian_sampler.forward(x_z, ts, return_v=True)
+        if self.bvae.vertex_encoding:
+            x_noise = torch.randn_like(x_z)
+            x_t = self.train_noise_scheduler.add_noise(x_z, x_noise, t)
+            x_target = self.train_noise_scheduler.get_velocity(x_z, x_noise, t) # v prediction
         else:
             x_t = x_z
-            x_v = None
-        y_t, y_v = self.gaussian_sampler.forward(y_z, ts, return_v=True)
-        x_v_pred, y_v_pred = self.forward(x_t, y_t, ts)
 
-        if self.bvae.encode_nodes:
-            x_loss = F.mse_loss(x_v_pred, x_v)
+        y_noise = torch.randn_like(y_z)
+        y_t = self.train_noise_scheduler.add_noise(y_z, y_noise, t)
+        y_target = self.train_noise_scheduler.get_velocity(y_z, y_noise, t) # v prediction
+        x_v_pred, y_v_pred = self.forward(x_t, y_t, t)
+
+        if self.bvae.vertex_encoding:
+            x_loss = F.mse_loss(x_v_pred, x_target)
             self.log("training/x_loss", x_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         else:
             x_loss = 0.0
-        y_loss = F.mse_loss(y_v_pred, y_v)
+
+        y_loss = F.mse_loss(y_v_pred, y_target)
         self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         loss = x_loss + y_loss
         self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
 
     @torch.no_grad()
-    def sample(self, batch_size: int):
+    def sample(self, batch_size: int, num_nodes: int, num_hyperedges: int):
         pass
 
     def predict_step(self, batch, batch_idx):
         z_x_T, z_y_T = batch
         B, N, F = z_x_T.size()
         _, M, _ = z_y_T.size()
-        ts = torch.full((B, 1), self.T, device=self.device, dtype=torch.long) # [B, 1]
 
-        for _ in tqdm(range(self.T, 0, -1), desc="Sampling"):
+        scheduler = self.sampling_noise_scheduler
+
+        for t in tqdm(scheduler.timesteps):
             # x_v prediction is only used if nodes are encoded
-            x_v_pred, y_v_pred = self(z_x_T, z_y_T, ts)
-            if self.bvae.encode_nodes: # Reverse on nodes only if the model encodes them
-                z_x_T = self.gaussian_sampler.reverse(z_x_T, ts, v_pred=x_v_pred)
-            z_y_T = self.gaussian_sampler.reverse(z_y_T, ts, v_pred=y_v_pred)
-            ts -= 1
+            x_v_pred, y_v_pred = self(z_x_T, z_y_T, t)
+            if self.bvae.vertex_encoding: # Reverse on nodes only if the model encodes them
+                x_step_out = scheduler.step(x_v_pred, t, z_x_T)
+                z_x_T = x_step_out.prev_sample
+            y_step_out = scheduler.step(y_v_pred, t, z_y_T)
+            z_y_T = y_step_out.prev_sample
 
         h_logits = self.bvae.hypergraph_decoder(z_x_T, z_y_T)  # Decode
         incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample() # Sample hard incidence matrices
-        if self.bvae.encode_nodes:
+        if self.bvae.vertex_encoding:
             x_rec = self.bvae.node_features_decoder(z_x_T, incidence_matrices)             # Produce node representations
         else:
             x_rec = None
