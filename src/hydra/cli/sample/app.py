@@ -39,7 +39,7 @@ def bvae(
     pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
     num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,):
+    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
     datamodule_config = DataModuleConfig(p=p,
