@@ -1,6 +1,6 @@
 import lightning as L
 from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, EarlyStopping, ModelCheckpoint, LambdaCallback
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
 
 from ..models.modules import HypergraphBetaVAE
 from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
@@ -69,6 +69,9 @@ def train_bvae(
                 max_lr=1,
                 num_training_steps=300,
             )  if optimizer_config.learning_rate is None else LambdaCallback(),
+            RichProgressBar(
+                refresh_rate=1,
+            )
         ]
     )
 
