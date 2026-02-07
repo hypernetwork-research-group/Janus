@@ -138,7 +138,7 @@ class HypergraphBetaVAE(L.LightningModule):
                     global_step=self.current_epoch
                 )
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor, h: torch.Tensor):
+    def forward(self, x: torch.Tensor, y: torch.Tensor, h: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor]:
         if self.encode_nodes:
             x_mu = self.x_encoder_mu(x, h)
             x_log_var = self.x_encoder_log_var(x, h)
@@ -256,7 +256,7 @@ class HypergraphBetaVAE(L.LightningModule):
 
         return loss
 
-    def predict_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor]:
         x = batch['node_features']
         y = batch['hyperedge_features']
         h = batch['incidence_matrix']
@@ -267,7 +267,9 @@ class HypergraphBetaVAE(L.LightningModule):
 
         h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 
-        return h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
+        incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample()
+
+        return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
 class DiffusionTransformer(L.LightningModule):
 
