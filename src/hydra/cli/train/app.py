@@ -85,7 +85,7 @@ def bvae(ctx: typer.Context,
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
-    model_size_config: ModelSizeConfig = ctx.obj["model_size_config"]
+    model_size_config: str = ctx.obj["model_size_config"]
     optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
     early_stopping_config: EarlyStoppingConfig = ctx.obj["early_stopping_config"]
     train_bvae(datamodule_config=datamodule_config,

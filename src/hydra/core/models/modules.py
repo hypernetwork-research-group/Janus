@@ -33,7 +33,7 @@ class HypergraphBetaVAE(L.LightningModule):
         self.y_kl_weight = y_kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
         self.weight_decay = weight_decay or 1e-5
-        self.model_size_config = ModelSize[model_size_config].cfg
+        self.model_size_config = ModelSize(model_size_config).cfg
         self.encode_nodes = encode_nodes
         self.patience = patience
         self.node_feature_dim = num_node_features

@@ -11,7 +11,7 @@ def train_bvae(
     dataloader_config: DataLoaderConfig,
     trainer_config: TrainerConfig,
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
-    model_size_config: ModelSizeConfig,
+    model_size_config: str,
     optimizer_config: OptimizerConfig,
     early_stopping_config: EarlyStoppingConfig,
     vertex_encoding: bool,
