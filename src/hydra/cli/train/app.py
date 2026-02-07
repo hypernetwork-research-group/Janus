@@ -27,10 +27,10 @@ def train_callback(
     train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
     val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
     predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
-    val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
+    val_size: Annotated[float | None, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
     # DataLoaderConfig options
     pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
-    num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
+    num_workers: Annotated[int | None, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
     # TrainerConfig options
@@ -79,7 +79,7 @@ from ...core.train.bvae import train_bvae
 def bvae(ctx: typer.Context,
          vertex_encoding: Annotated[bool, typer.Option("--vertex-encoding/--no-vertex-encoding", help="Whether to encode nodes in the model.")] = False,
          kl_weight: Annotated[float, typer.Option("--kl-weight", help="Weight of the KL divergence term in the loss function.")] = 1e-6,
-         latent_dim: Annotated[int, typer.Option("--latent-dim", help="Dimensionality of the latent space. If None, use input feature dimension.")] = None):
+         latent_dim: Annotated[int | None, typer.Option("--latent-dim", help="Dimensionality of the latent space. If None, use input feature dimension.")] = None):
     """Train a model on the specified dataset."""
     datamodule_config: DataModuleConfig = ctx.obj["datamodule_config"]
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]
