@@ -11,7 +11,7 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 @app.callback()
 def main(
     ctx: typer.Context,
-    ckpt_path: Annotated[Path, typer.Option(help="Path to the checkpoint to sample from.")],
+    ckpt_path: Annotated[Path, typer.Option("--ckpt-path", "--ckpt", help="Path to the checkpoint to sample from.")],
 ):
     """MyCLI: a tiny example Typer app."""
     ctx.ensure_object(dict)
