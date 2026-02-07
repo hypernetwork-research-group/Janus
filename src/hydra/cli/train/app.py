@@ -4,8 +4,8 @@ from pathlib import Path
 
 import typer
 
-from ...core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig
-from ...core.models.enums import ModelSize
+from hydra.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig
+from hydra.core.models.enums import ModelSize
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
@@ -72,8 +72,8 @@ def train_callback(
                                                   weight_decay=weight_decay)
     ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=early_stopping_patience)
 
-from ...core.configs import ModelSizeConfig
-from ...core.train.bvae import train_bvae
+from hydra.core.configs import ModelSizeConfig
+from hydra.core.train.bvae import train_bvae
 
 @app.command()
 def bvae(ctx: typer.Context,
@@ -99,7 +99,7 @@ def bvae(ctx: typer.Context,
               kl_weight=kl_weight,
               latent_dim=latent_dim)
 
-from ...core.train.ddm import train_ddm
+from hydra.core.train.ddm import train_ddm
 
 @app.command()
 def ddm(ctx: typer.Context,

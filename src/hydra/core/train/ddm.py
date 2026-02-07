@@ -1,9 +1,9 @@
 import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, EarlyStopping, ModelCheckpoint, LambdaCallback
 
-from ..models.modules import HypergraphBetaVAE
-from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
-from ..data.datamodules import HypergraphDataModule
+from hydra.core.models.modules import HypergraphBetaVAE
+from hydra.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
+from hydra.core.data.datamodules import HypergraphDataModule
 
 def train_ddm(
     datamodule_config: DataModuleConfig,

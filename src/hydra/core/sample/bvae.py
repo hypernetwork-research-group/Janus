@@ -1,12 +1,13 @@
 from pathlib import Path
 
 import lightning as L
+from lightning.pytorch.callbacks.prediction_writer import WriteInterval
 import torch
 from tqdm.rich import tqdm
 
-from ..configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
-from ..models.modules import HypergraphBetaVAE
-from ..data.datamodules import HypergraphDataModule
+from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
+from hydra.core.models.modules import HypergraphBetaVAE
+from hydra.core.data.datamodules import HypergraphDataModule
 
 def sample_bvae(
     datamodule_config: DataModuleConfig,

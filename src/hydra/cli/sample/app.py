@@ -3,8 +3,8 @@ from pathlib import Path
 
 import typer
 
-from ...core.sample.bvae import sample_bvae
-from ...core.configs import DataModuleConfig, DataLoaderConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig
+from hydra.core.sample.bvae import sample_bvae
+from hydra.core.configs import DataModuleConfig, DataLoaderConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 

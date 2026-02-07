@@ -2,9 +2,9 @@ import lightning as L
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
 
-from ..models.modules import HypergraphBetaVAE
-from ..configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
-from ..data.datamodules import HypergraphDataModule
+from hydra.core.models.modules import HypergraphBetaVAE
+from hydra.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
+from hydra.core.data.datamodules import HypergraphDataModule
 
 def train_bvae(
     datamodule_config: DataModuleConfig,

@@ -1,6 +1,6 @@
 from enum import Enum, unique, auto
 
-from ..configs import ModelSizeConfig
+from hydra.core.configs import ModelSizeConfig
 
 @unique
 class ModelSize(Enum):
