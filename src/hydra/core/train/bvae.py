@@ -16,6 +16,7 @@ def train_bvae(
     early_stopping_config: EarlyStoppingConfig,
     vertex_encoding: bool,
     kl_weight: float,
+    latent_dim: int | None
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
@@ -84,6 +85,7 @@ def train_bvae(
         encode_nodes=vertex_encoding,
         model_size_config=model_size_config,
         patience=early_stopping_config.patience,
+        latent_dim=latent_dim
     )
 
     trainer.fit(model, datamodule=datamodule)

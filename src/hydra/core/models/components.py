@@ -243,6 +243,7 @@ class HGAT(nn.Module):
     def __init__(self,
                  in_channels: int,
                  hidden_channels: int,
+                 out_channels: int,
                  num_layers: int,
                  heads: int = 4):
         super(HGAT, self).__init__()
@@ -261,7 +262,7 @@ class HGAT(nn.Module):
             }) for _ in range(num_layers)
         ])
         self.output_norm = nn.LayerNorm(hidden_channels, elementwise_affine=False)
-        self.output_proj = nn.Linear(hidden_channels, in_channels)
+        self.output_proj = nn.Linear(hidden_channels, out_channels)
 
     def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
         x = self.input_norm(x)

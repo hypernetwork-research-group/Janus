@@ -25,7 +25,8 @@ class HypergraphBetaVAE(L.LightningModule):
                  encode_nodes: bool = True,
                  patience: int = 100,
                  num_node_features: int = 128,
-                 num_hyperedge_features: int = 128):
+                 num_hyperedge_features: int = 128,
+                 latent_dim: int | None = None):
         super().__init__()
         self.kl_weight = kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
@@ -35,6 +36,7 @@ class HypergraphBetaVAE(L.LightningModule):
         self.patience = patience
         self.node_feature_dim = num_node_features
         self.hyperedge_feature_dim = num_hyperedge_features
+        self.latent_dim = latent_dim or num_hyperedge_features # Latent dimension is the same as hyperedge feature dimension by default, but can be set to a different value for more compression
         self.save_hyperparameters()
 
     def configure_callbacks(self):
@@ -64,35 +66,39 @@ class HypergraphBetaVAE(L.LightningModule):
             self.x_encoder_mu = HGAT(
                 in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
+                out_channels=self.latent_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
             self.x_encoder_log_var = HGAT(
                 in_channels=self.node_feature_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
+                out_channels=self.latent_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
         self.y_encoder_mu = HGAT(
             in_channels=self.hyperedge_feature_dim,
             hidden_channels=self.model_size_config.hidden_dim,
+            out_channels=self.latent_dim,
             num_layers=self.model_size_config.num_layers,
             heads=self.model_size_config.heads
         )
         self.y_encoder_log_var = HGAT(
             in_channels=self.hyperedge_feature_dim,
             hidden_channels=self.model_size_config.hidden_dim,
+            out_channels=self.latent_dim,
             num_layers=self.model_size_config.num_layers,
             heads=self.model_size_config.heads
         )
         # Decoder
         self.hypergraph_decoder = HypergraphDecoder(
-            in_channels=self.hyperedge_feature_dim,
+            in_channels=self.latent_dim,
             num_classes=2
         )
         if self.encode_nodes:
             self.node_features_decoder = HGAT(
-                in_channels=self.node_feature_dim,
+                in_channels=self.latent_dim,
                 hidden_channels=self.model_size_config.hidden_dim,
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
