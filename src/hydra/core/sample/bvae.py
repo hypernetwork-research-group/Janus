@@ -45,8 +45,7 @@ def sample_bvae(
     )
 
     hyperedges = set()
-    for h_logits, _, _, _, _, _, _, _ in tqdm(predictions):
-        incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample()
+    for incidence_matrices, *_ in tqdm(predictions):
         for incidence_matrix in incidence_matrices:
             for col in incidence_matrix.T:
                 if len(hyperedges) >= 1512:
