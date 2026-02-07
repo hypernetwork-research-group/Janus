@@ -18,7 +18,8 @@ DEFAULT_LR = 1e-4
 class HypergraphBetaVAE(L.LightningModule):
 
     def __init__(self,
-                 kl_weight: float = 1.0,
+                 x_kl_weight: float | None = None,
+                 y_kl_weight: float | None = None,
                  learning_rate: float | None = None,
                  weight_decay: float | None = None,
                  model_size_config: str = ModelSize.M.value,
@@ -28,7 +29,8 @@ class HypergraphBetaVAE(L.LightningModule):
                  num_hyperedge_features: int = 128,
                  latent_dim: int | None = None):
         super().__init__()
-        self.kl_weight = kl_weight
+        self.x_kl_weight = x_kl_weight
+        self.y_kl_weight = y_kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
         self.weight_decay = weight_decay or 1e-5
         self.model_size_config = ModelSize[model_size_config].cfg
@@ -200,7 +202,7 @@ class HypergraphBetaVAE(L.LightningModule):
             # Detach decoder 2
             reconstruction_loss = reconstruction_loss.detach()
 
-        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss
+        loss = reconstruction_loss + self.x_kl_weight * x_kl_loss + self.y_kl_weight * y_kl_loss + x_recon_loss
         self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
 
         return loss
@@ -238,7 +240,7 @@ class HypergraphBetaVAE(L.LightningModule):
         else:
             x_recon_loss = 0.0
 
-        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss
+        loss = reconstruction_loss + self.x_kl_weight * x_kl_loss + self.y_kl_weight * y_kl_loss + x_recon_loss
         self.log("validation/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
 
         return loss
