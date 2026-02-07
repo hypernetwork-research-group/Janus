@@ -27,6 +27,7 @@ class DataLoaderConfig:
     num_workers: int | None
     persistent_workers: bool
     batch_size: int | None
+    drop_last:  bool
 
 @dataclass
 class TrainerConfig:
