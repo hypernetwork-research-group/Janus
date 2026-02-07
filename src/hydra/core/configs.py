@@ -11,9 +11,9 @@ class DataModuleConfig:
     samples_per_hyperedge: int
     data_dir: Path
     retain_lcc: bool
-    train_split: List[str]
-    val_split: List[str]
-    predict_split: List[str]
+    train_split: str
+    val_split: str
+    predict_split: str
     val_size: Union[float, int, None]
 
 @dataclass
