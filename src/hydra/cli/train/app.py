@@ -33,6 +33,7 @@ def train_callback(
     num_workers: Annotated[int | None, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
+    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
     # TrainerConfig options
     max_epochs: Annotated[int, typer.Option("--max-epochs", help="Maximum number of training epochs.")] = -1,
     accumulate_grad_batches: Annotated[int, typer.Option("--accumulate-grad-batches", help="Number of batches to accumulate gradients over.")] = 1,
@@ -62,7 +63,8 @@ def train_callback(
     ctx.obj["dataloader_config"] = DataLoaderConfig(pin_memory=pin_memory,
                                                     num_workers=num_workers,
                                                     persistent_workers=persistent_workers,
-                                                    batch_size=batch_size)
+                                                    batch_size=batch_size,
+                                                    drop_last=drop_last)
     ctx.obj["trainer_config"] = TrainerConfig(max_epochs=max_epochs,
                                               accumulate_grad_batches=accumulate_grad_batches)
     ctx.obj["huggingface_datasets_config"] = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
@@ -102,6 +104,7 @@ from hydra.core.train.ddm import train_ddm
 
 @app.command()
 def ddm(ctx: typer.Context,
+        bvae_ckpt: Annotated[Path, typer.Option("--bvae-ckpt", help="Path to the pretrained BVAE checkpoint to use for the DDM.")],
         T: Annotated[int, typer.Option("--T", help="Number of diffusion steps.")] = 1000):
     """Train a conditional model on the specified dataset."""
     datamodule_config: DataModuleConfig = ctx.obj["datamodule_config"]
@@ -109,9 +112,13 @@ def ddm(ctx: typer.Context,
     dataloader_config: DataLoaderConfig = ctx.obj["dataloader_config"]
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
     optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
+    model_size_config: str = ctx.obj["model_size_config"]
+    
     train_ddm(datamodule_config=datamodule_config,
               dataloader_config=dataloader_config,
               trainer_config=trainer_config,
               optimizer_config=optimizer_config,
               huggingface_datasets_config=huggingface_datasets_config,
+              model_size_config=model_size_config,
+              bvae_ckpt=bvae_ckpt,
               T=T)

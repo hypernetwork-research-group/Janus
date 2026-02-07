@@ -34,7 +34,9 @@ def train_bvae(
                         num_workers=dataloader_config.num_workers,
                         persistent_workers=dataloader_config.persistent_workers,
                         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-                        val_size=datamodule_config.val_size,)
+                        val_size=datamodule_config.val_size,
+                        drop_last=vertex_encoding or dataloader_config.drop_last)
+    # Since vertex encoding requires contrastive loss over nodes in the batch, we automatically set drop_last=True when vertex_encoding is enabled to ensure consistent batch sizes.
 
     # Here we should determine the model name:
     # BVAE-HyDRA-{model_size}/vertex_encoding
@@ -82,7 +84,7 @@ def train_bvae(
         y_kl_weight=kl_weight,
         learning_rate=optimizer_config.learning_rate,
         weight_decay=optimizer_config.weight_decay,
-        encode_nodes=vertex_encoding,
+        vertex_encoding=vertex_encoding,
         model_size_config=model_size_config,
         patience=early_stopping_config.patience,
         latent_dim=latent_dim
