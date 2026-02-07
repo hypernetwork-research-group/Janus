@@ -48,6 +48,7 @@ def train_bvae(
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         log_every_n_steps=10, # TODO: Add this to trainer configuration
         check_val_every_n_epoch=1,
+        enable_checkpointing=False,
         logger=TensorBoardLogger(
             save_dir=default_root_dir, # base path
             name="logs",  # replaces the default "lightning_logs"
@@ -59,7 +60,7 @@ def train_bvae(
                 log_momentum=True,
                 log_weight_decay=True
             ),
-            BatchSizeFinder(
+            BatchSizeFinder( # TODO: Add this to batch size finder configuration
                 mode="binsearch",
                 steps_per_trial=3,
                 margin=0.45
