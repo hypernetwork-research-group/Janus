@@ -18,7 +18,6 @@ DEFAULT_LR = 1e-4
 class HypergraphBetaVAE(L.LightningModule):
 
     def __init__(self,
-                 num_hyperedges: int,
                  kl_weight: float = 1.0,
                  learning_rate: float | None = None,
                  weight_decay: float | None = None,
@@ -28,7 +27,6 @@ class HypergraphBetaVAE(L.LightningModule):
                  num_node_features: int = 128,
                  num_hyperedge_features: int = 128):
         super().__init__()
-        self.num_hyperedges = num_hyperedges
         self.kl_weight = kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
         self.weight_decay = weight_decay or 1e-5
@@ -87,10 +85,6 @@ class HypergraphBetaVAE(L.LightningModule):
             num_layers=self.model_size_config.num_layers,
             heads=self.model_size_config.heads
         )
-        self.y_emb = nn.Embedding(
-            num_embeddings=self.num_hyperedges,
-            embedding_dim=self.hyperedge_feature_dim
-        )
         # Decoder
         self.hypergraph_decoder = HypergraphDecoder(
             in_channels=self.hyperedge_feature_dim,
@@ -104,7 +98,6 @@ class HypergraphBetaVAE(L.LightningModule):
                 heads=self.model_size_config.heads
             )
 
-        nn.init.constant_(self.y_emb.weight, 0.0)
         # Initialize parameters
         if self.encode_nodes:
             init_hypergraph_encoder(self.x_encoder_mu)
@@ -168,12 +161,6 @@ class HypergraphBetaVAE(L.LightningModule):
         s = batch['touched_hyperedges']     # [B, num_hyperedges]
         m = batch['nodes_mask']             # [B, num_nodes] TODO: Use this
 
-        y_s = self.y_emb(s)
-        y = y + y_s
-
-        y_decay_loss = y_s.pow(2).mean() * 1e-4
-        self.log("training/y_decay_loss", y_decay_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
-
         h_logits, x_r, _, _, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 
         # From here, x and y are in the encoded space
@@ -207,7 +194,7 @@ class HypergraphBetaVAE(L.LightningModule):
             # Detach decoder 2
             reconstruction_loss = reconstruction_loss.detach()
 
-        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss + y_decay_loss
+        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss
         self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
 
         return loss
@@ -218,12 +205,6 @@ class HypergraphBetaVAE(L.LightningModule):
         h = batch['incidence_matrix']
         s = batch['touched_hyperedges']
         m = batch['nodes_mask']             # [B, num_nodes] TODO: Use this
-
-        y_s = self.y_emb(s)
-        y = y + y_s
-
-        y_decay_loss = y_s.pow(2).mean() * 1e-4
-        self.log("validation/y_decay_loss", y_decay_loss.item(), prog_bar=False, on_step=False, on_epoch=True)
 
         h_logits, x_r, _, _, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 
@@ -251,7 +232,7 @@ class HypergraphBetaVAE(L.LightningModule):
         else:
             x_recon_loss = 0.0
 
-        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss + y_decay_loss
+        loss = reconstruction_loss + self.kl_weight * (x_kl_loss + y_kl_loss) + x_recon_loss
         self.log("validation/loss", loss, prog_bar=True, on_step=False, on_epoch=True)
 
         return loss
@@ -261,9 +242,6 @@ class HypergraphBetaVAE(L.LightningModule):
         y = batch['hyperedge_features']
         h = batch['incidence_matrix']
         s = batch['touched_hyperedges']
-
-        y_s = self.y_emb(s)
-        y = y + y_s
 
         h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 

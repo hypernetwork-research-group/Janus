@@ -75,7 +75,6 @@ def train_bvae(
     # TODO: Read dataset and determine num_hyperedges
 
     model = HypergraphBetaVAE(
-        num_hyperedges=1512,
         kl_weight=kl_weight,
         learning_rate=optimizer_config.learning_rate,
         weight_decay=optimizer_config.weight_decay,
