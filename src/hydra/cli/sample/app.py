@@ -39,7 +39,9 @@ def bvae(
     pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
     num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,):
+    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,
+    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
+):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
     datamodule_config = DataModuleConfig(p=p,
@@ -56,7 +58,8 @@ def bvae(
     dataloader_config = DataLoaderConfig(pin_memory=pin_memory,
                                                     num_workers=num_workers,
                                                     persistent_workers=persistent_workers,
-                                                    batch_size=batch_size)
+                                                    batch_size=batch_size,
+                                                    drop_last=drop_last)
     huggingface_datasets_config = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
                                                                      cache_dir=cache_dir)
 
