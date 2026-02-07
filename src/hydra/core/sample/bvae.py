@@ -15,8 +15,13 @@ def sample_bvae(
     dataloader_config: DataLoaderConfig,
     ckpt_path: Path,
 ):
+    
+    model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
+
     trainer = L.Trainer(
+        default_root_dir="logs/daqh/email-Enron/BVAE-HyDRA-S/logs/version_0",
         logger=False,
+        enable_checkpointing=False,
     )
 
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
@@ -37,8 +42,6 @@ def sample_bvae(
                         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
                         val_size=datamodule_config.val_size,)
 
-    model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
-
     predictions = trainer.predict(
         model,
         datamodule=datamodule,
@@ -49,8 +52,6 @@ def sample_bvae(
     for incidence_matrices, *_ in tqdm(predictions):
         for incidence_matrix in incidence_matrices:
             for col in incidence_matrix.T:
-                if len(hyperedges) >= 1512:
-                    break
                 nodes = torch.nonzero(col).squeeze().tolist()
                 if isinstance(nodes, int):
                     nodes = [nodes]
