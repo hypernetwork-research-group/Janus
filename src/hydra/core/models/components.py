@@ -255,7 +255,8 @@ class HGAT(nn.Module):
                                                   hidden_channels,
                                                   bias=True,
                                                   mode='attn',
-                                                  heads=heads,),
+                                                  heads=heads,
+                                                  symmetric_norm=True),
                 'norm': nn.LayerNorm(hidden_channels, elementwise_affine=False),
                 'activation': nn.LeakyReLU(),
                 'skip_proj': nn.Linear(hidden_channels, hidden_channels)
