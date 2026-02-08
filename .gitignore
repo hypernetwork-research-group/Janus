@@ -11,5 +11,5 @@ wheels/
 
 # Additional
 cache/
-data/
+/data/
 logs/
