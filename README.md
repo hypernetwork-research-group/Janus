@@ -50,13 +50,19 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
 ## Use different datasets
 
 Our pipeline is able to handle single and multi-hypergraph datasets retrieved from huggingface.
-In order to work, an hypergraph dataset must be stored in a `.jsonl` file, where each entry is a JSON with the following structure:
+In order to work, an hypergraph dataset must be stored in a `.jsonl` file, where each entry is a JSON following the [HIF standard](https://github.com/HIF-org/HIF-standard):
 
-```json
+```jsonl
 {
-  "hif": <HIF REPRESENTATION>
+  "network-type": ...,
+  "metadata": ...,
+  "incidences": [...],
+  "nodes": [...],
+  "edges": [...]
 }
 ```
+
+In order to provide nodes and edges features, these must be set in the `attrs` dictionary of each node/edge.
 
 ### Dataset structure
 
