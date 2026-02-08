@@ -11,17 +11,18 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 @app.callback()
 def main(
     ctx: typer.Context,
+    dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
     ckpt_path: Annotated[Path, typer.Option("--ckpt-path", "--ckpt", help="Path to the checkpoint to sample from.")],
 ):
     """MyCLI: a tiny example Typer app."""
     ctx.ensure_object(dict)
     ctx.obj['ckpt_path'] = ckpt_path
+    ctx.obj['dataset_name'] = dataset_name
 
 @app.command()
 def bvae(
     ctx: typer.Context,
     # HuggingFaceDatasetsConfig options
-    dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Cache directory for datasets.")] = Path("./cache"),
     # DataModuleConfig options
     p: Annotated[float, typer.Option("-p", help="Biased random walk p parameter, controlling likelihood of immediately revisiting a node.")] = 2.0,
@@ -44,6 +45,7 @@ def bvae(
 ):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
+    dataset_name = ctx.obj['dataset_name']
     datamodule_config = DataModuleConfig(p=p,
                                          q=q,
                                          alpha=alpha,
