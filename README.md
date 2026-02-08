@@ -15,7 +15,7 @@ hydra train [DATASET] ddm [bvae_version]
 
 The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` option of the `hydra train` command. The following models sizes are available.
 
-<table style="width: 100%">
+<table>
   <thead>
     <tr>
       <td>Size</td>
