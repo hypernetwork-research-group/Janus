@@ -81,6 +81,11 @@ class HypergraphBetaVAE(L.LightningModule):
                 num_layers=self.model_size_config.num_layers,
                 heads=self.model_size_config.heads
             )
+        else:
+            self.x_adapter = nn.Sequential(
+                nn.LayerNorm(self.node_feature_dim, elementwise_affine=False),
+                nn.Linear(self.node_feature_dim, self.latent_dim),
+            )
         self.y_encoder_mu = HGAT(
             in_channels=self.hyperedge_feature_dim,
             hidden_channels=self.model_size_config.hidden_dim,
@@ -118,7 +123,7 @@ class HypergraphBetaVAE(L.LightningModule):
         init_hypergraph_decoder(self.hypergraph_decoder)
         if self.vertex_encoding:
             init_hypergraph_encoder(self.node_features_decoder)
-
+        
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(),
                                       lr=self.learning_rate,
@@ -148,7 +153,7 @@ class HypergraphBetaVAE(L.LightningModule):
             x_log_var = self.x_encoder_log_var(x, h)
             x_z = x_mu + torch.exp(0.5 * x_log_var) * torch.randn_like(x_log_var)
         else:
-            x_z = x
+            x_z = self.x_adapter(x)
             x_mu = None
             x_log_var = None
 
@@ -259,8 +264,6 @@ class HypergraphBetaVAE(L.LightningModule):
         incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample()
 
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
-
-from pathlib import Path
 
 class DiffusionTransformer(L.LightningModule):
 
