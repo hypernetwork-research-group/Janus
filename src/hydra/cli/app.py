@@ -14,7 +14,7 @@ app.add_typer(train_app, name="train")
 app.add_typer(sample_app, name="sample")
 
 @app.callback()
-def main(
+def main_callback(
     ctx: typer.Context,
     log_level: Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Option("--log-level", help="Set the logging level.")] = "WARNING",
 ):
