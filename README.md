@@ -1,7 +1,21 @@
 
 ## Training
 
-<table>
+```bash
+hydra train [DATASET] bvae --vertex-encoding/--no-vertex-encoding
+```
+
+and then
+
+```
+hydra train [DATASET] ddm [bvae_version]
+```
+
+### Model size
+
+The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` option of the `hydra train` command. The following models sizes are available.
+
+<table style="width: 100%">
   <thead>
     <tr>
       <td>Size</td>
@@ -33,16 +47,6 @@
   </tbody>
 </table>
 
-```bash
-hydra train [DATASET] bvae --vertex-encoding/--no-vertex-encoding
-```
-
-and then
-
-```
-hydra train [DATASET] ddm [bvae_version]
-```
-
 ## Use different datasets
 
 Our pipeline is able to handle single and multi-hypergraph datasets retrieved from huggingface.
@@ -59,7 +63,7 @@ In order to work, an hypergraph dataset must be stored in a `.jsonl` file, where
 data/
   full-00000-of-00001.jsonl
 
-When running the training script `full` is the default split for train/val/predict (the predict split is only used when performing sampling from the $\beta\text{-VAE}$ AutoEncoder).
+When running the training script `full` is the default split for train/val/predict (the predict split is only used when performing sampling from the $\beta\text{-VAE}$).
 If the split is equal for train/val, the `--val-size` option is used to perform train/val split across that dataset, otherwise this option is ignored.
 
 ```bash
