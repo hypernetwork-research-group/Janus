@@ -44,7 +44,7 @@ def train_callback(
     learning_rate: Annotated[float | None, typer.Option("--learning-rate", "-lr", help="Learning rate for the optimizer. If not set, Learning Rate Finder will be used to determine it.")] = None,
     weight_decay: Annotated[float | None, typer.Option("--weight-decay", help="Weight decay (L2 regularization) for the optimizer. If not set, model defaults are used.")] = None,
     # EarlyStoppingConfig options
-    early_stopping_patience: Annotated[int, typer.Option("--patience", help="Number of epochs with no improvement after which training will be stopped.")] = 100,
+    patience: Annotated[int, typer.Option("--patience", help="Number of epochs with no improvement after which training will be stopped.")] = 70,
 ):
     """Common options for data loading."""
     # ctx.obj is the standard place to store shared state across commands :contentReference[oaicite:3]{index=3}
@@ -72,7 +72,7 @@ def train_callback(
     ctx.obj["model_size_config"] = model_size.value
     ctx.obj["optimizer_config"] = OptimizerConfig(learning_rate=learning_rate,
                                                   weight_decay=weight_decay)
-    ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=early_stopping_patience)
+    ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=patience)
 
 from hydra.core.train.bvae import train_bvae
 

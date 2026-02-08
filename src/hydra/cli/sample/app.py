@@ -40,7 +40,7 @@ def bvae(
     num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,
-    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
+    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = True,
 ):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
