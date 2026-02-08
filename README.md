@@ -1,6 +1,38 @@
 
 ## Training
 
+<table>
+  <thead>
+    <tr>
+      <td>Size</td>
+      <td># Layers</td>
+      <td># Heads</td>
+      <td>Hidden size</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>S</td>
+      <td>1</td>
+      <td>2</td>
+      <td>128</td>
+    </tr>
+    <tr>
+      <td>M</td>
+      <td>2</td>
+      <td>4</td>
+      <td>256</td>
+    </tr>
+    </tr>
+    <tr>
+      <td>L</td>
+      <td>4</td>
+      <td>8</td>
+      <td>512</td>
+    </tr>
+  </tbody>
+</table>
+
 ```bash
 hydra train [DATASET] bvae --vertex-encoding/--no-vertex-encoding
 ```
