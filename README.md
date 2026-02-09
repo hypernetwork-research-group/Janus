@@ -65,23 +65,23 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/email-Eu" target="_blank">daqh/email-Eu</a></td>
-      <td>...</td>
-      <td>...</td>
+      <td>998</td>
+      <td>25,791</td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/contact-high-school" target="_blank">daqh/contact-high-school</a></td>
-      <td>...</td>
-      <td>...</td>
+      <td>327</td>
+      <td>7,937</td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/contact-primary-school" target="_blank">daqh/contact-primary-school</a></td>
-      <td>...</td>
-      <td>...</td>
+      <td>242</td>
+      <td>12,799</td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/NDC-classes" target="_blank">daqh/NDC-classes</a></td>
-      <td>...</td>
-      <td>...</td>
+      <td>1,161</td>
+      <td>1,222</td>
   </tbody>
 </table>
 
