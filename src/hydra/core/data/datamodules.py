@@ -76,9 +76,9 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # Preprocess the dataset
         # The preprocessing behaviour is described in the `process` function
-        # At the end of this, the 'hif' column will be removed
-        # Additionally, a kwarg `retain_lcc` is passed to determine whether to retain only the largest connected component of the hypergraph
-        # This preprocessing function will reindex the nodes to have consecutive indices starting from 0
+        # At the end of this, the `hif`` columns will be removed
+        # Additionally, `node_features` and `hyperedge_features` columns will be added
+        # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         processed = datasets.map(process,
                          load_from_cache_file=True,
                          remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
@@ -104,6 +104,7 @@ class HypergraphDataModule(L.LightningDataModule):
             for k, v in processed.items()
         })
 
+        # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
         if self.train_split == self.val_split:
             temp_ = transformed[self.train_split].train_test_split(test_size=self.val_size, shuffle=True, seed=42) # TODO: pass seed
             # Rename the splits to train and val
@@ -112,7 +113,7 @@ class HypergraphDataModule(L.LightningDataModule):
                 "val": temp_["test"],
                 "predict": transformed[self.predict_split],
             })
-        else:
+        else: # If the training and validation splits are different, we can directly use them without splitting
             transformed = DatasetDict({
                 "train": transformed[self.train_split],
                 "val": transformed[self.val_split],
