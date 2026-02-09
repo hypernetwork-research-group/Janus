@@ -13,9 +13,6 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 @app.callback()
 def train_callback(
     ctx: typer.Context,
-    # HuggingFaceDatasetsConfig options
-    dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
-    cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Cache directory for datasets.")] = Path("./cache"),
     # DataModuleConfig options
     p: Annotated[float, typer.Option("-p", help="Biased random walk p parameter, controlling likelihood of immediately revisiting a node.")] = 2.0,
     q: Annotated[float, typer.Option("-q", help="Biased random walk q parameter, controlling likelihood of visiting nodes further away from the source node.")] = 0.5,
@@ -28,12 +25,6 @@ def train_callback(
     val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
     predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
     val_size: Annotated[float | None, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
-    # DataLoaderConfig options
-    pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
-    num_workers: Annotated[int | None, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
-    persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
-    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
     # TrainerConfig options
     max_epochs: Annotated[int, typer.Option("--max-epochs", help="Maximum number of training epochs.")] = -1,
     accumulate_grad_batches: Annotated[int, typer.Option("--accumulate-grad-batches", help="Number of batches to accumulate gradients over.")] = 1,
@@ -60,15 +51,8 @@ def train_callback(
                                                     val_split=val_split,
                                                     predict_split=predict_split,
                                                     val_size=val_size)
-    ctx.obj["dataloader_config"] = DataLoaderConfig(pin_memory=pin_memory,
-                                                    num_workers=num_workers,
-                                                    persistent_workers=persistent_workers,
-                                                    batch_size=batch_size,
-                                                    drop_last=drop_last)
     ctx.obj["trainer_config"] = TrainerConfig(max_epochs=max_epochs,
                                               accumulate_grad_batches=accumulate_grad_batches)
-    ctx.obj["huggingface_datasets_config"] = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
-                                                                     cache_dir=cache_dir)
     ctx.obj["model_size_config"] = model_size.value
     ctx.obj["optimizer_config"] = OptimizerConfig(learning_rate=learning_rate,
                                                   weight_decay=weight_decay)
@@ -113,7 +97,7 @@ def ddm(ctx: typer.Context,
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
     optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
     model_size_config: str = ctx.obj["model_size_config"]
-    
+
     train_ddm(datamodule_config=datamodule_config,
               dataloader_config=dataloader_config,
               trainer_config=trainer_config,

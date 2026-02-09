@@ -73,5 +73,5 @@ When running the training script `full` is the default split for train/val/predi
 If the split is equal for train/val, the `--val-size` option is used to perform train/val split across that dataset, otherwise this option is ignored.
 
 ```bash
-hydra train --train-split train --val-split val --predict-split predict daqh/email-Enron bvae
+hydra daqh/email-Enron train --train-split train --val-split val --predict-split predict bvae
 ```

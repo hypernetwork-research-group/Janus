@@ -4,26 +4,23 @@ from pathlib import Path
 import typer
 
 from hydra.core.sample.bvae import sample_bvae
-from hydra.core.configs import DataModuleConfig, DataLoaderConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig
+from hydra.core.sample.ddm import sample_ddm
+from hydra.core.configs import DataModuleConfig
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 
 @app.callback()
 def main(
     ctx: typer.Context,
-    dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
     ckpt_path: Annotated[Path, typer.Option("--ckpt-path", "--ckpt", help="Path to the checkpoint to sample from.")],
 ):
     """MyCLI: a tiny example Typer app."""
     ctx.ensure_object(dict)
     ctx.obj['ckpt_path'] = ckpt_path
-    ctx.obj['dataset_name'] = dataset_name
 
 @app.command()
 def bvae(
     ctx: typer.Context,
-    # HuggingFaceDatasetsConfig options
-    cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Cache directory for datasets.")] = Path("./cache"),
     # DataModuleConfig options
     p: Annotated[float, typer.Option("-p", help="Biased random walk p parameter, controlling likelihood of immediately revisiting a node.")] = 2.0,
     q: Annotated[float, typer.Option("-q", help="Biased random walk q parameter, controlling likelihood of visiting nodes further away from the source node.")] = 0.5,
@@ -36,16 +33,9 @@ def bvae(
     val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
     predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
     val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
-    # DataLoaderConfig options
-    pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
-    num_workers: Annotated[int, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
-    persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
-    batch_size: Annotated[int, typer.Option("--batch-size", help="Batch size for DataLoader.")] = 32,
-    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = True,
 ):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
-    dataset_name = ctx.obj['dataset_name']
     datamodule_config = DataModuleConfig(p=p,
                                          q=q,
                                          alpha=alpha,
@@ -57,14 +47,8 @@ def bvae(
                                          val_split=val_split,
                                          predict_split=predict_split,
                                          val_size=val_size)
-    dataloader_config = DataLoaderConfig(pin_memory=pin_memory,
-                                                    num_workers=num_workers,
-                                                    persistent_workers=persistent_workers,
-                                                    batch_size=batch_size,
-                                                    drop_last=drop_last)
-    huggingface_datasets_config = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
-                                                                     cache_dir=cache_dir)
-
+    dataloader_config = ctx.obj['dataloader_config']
+    huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
     sample_bvae(datamodule_config,
                 huggingface_datasets_config,
                 dataloader_config,
@@ -73,4 +57,8 @@ def bvae(
 @app.command()
 def ddm(ctx: typer.Context):
     """Train a conditional model on the specified dataset."""
-    typer.echo(ctx.obj)
+    huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
+    print(ctx.obj)
+    # sample_ddm(
+    #
+    # )

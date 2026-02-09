@@ -1,11 +1,13 @@
 from typing import Literal, Annotated, Optional
 import typer
 import logging
+from pathlib import Path
 
 import rich.logging
 
 from .train.app import app as train_app
 from .sample.app import app as sample_app
+from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +18,33 @@ app.add_typer(sample_app, name="sample")
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    # HuggingFaceDatasetsConfig options
+    dataset_name: Annotated[str, typer.Argument(..., help="Name of the dataset to use.")],
+    cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Cache directory for datasets.")] = Path("./cache"),
+    # DataLoaderConfig options
+    pin_memory: Annotated[bool, typer.Option("--pin-memory/--no-pin-memory", help="Whether to pin memory in DataLoader.")] = True,
+    num_workers: Annotated[int | None, typer.Option("--num-workers", help="Number of workers for DataLoader.")] = None,
+    persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
+    batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
+    drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
+    # Logging options
     log_level: Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Option("--log-level", help="Set the logging level.")] = "WARNING",
 ):
     """MyCLI: a tiny example Typer app."""
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
     root_logger.addHandler(rich.logging.RichHandler())
+
+    ctx.ensure_object(dict)
+    huggingface_datasets_config = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
+                                                                    cache_dir=cache_dir)
+    ctx.obj['huggingface_datasets_config'] = huggingface_datasets_config
+    dataloader_config = DataLoaderConfig(pin_memory=pin_memory,
+                                        num_workers=num_workers,
+                                        persistent_workers=persistent_workers,
+                                        batch_size=batch_size,
+                                        drop_last=drop_last)
+    ctx.obj['dataloader_config'] = dataloader_config
 
 def main() -> None:
     # Entry point for console scripts
