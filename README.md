@@ -61,7 +61,7 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/email-Enron" target="_blank">daqh/email-Enron</a></td>
       <td>143</td>
-      <td>1512</td>
+      <td>1,512</td>
     </tr>
     <tr>
       <td><a href="https://huggingface.co/datasets/daqh/email-Eu" target="_blank">daqh/email-Eu</a></td>
