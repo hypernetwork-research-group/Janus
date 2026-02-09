@@ -66,3 +66,10 @@ def transform(dataset,
                 walk['incidence_matrix'] = walk_incidence_matrix
                 yield walk
     return _transform
+
+def add_random_noise(dataset, walk_length):
+    node_features = dataset["node_features"]
+    random_noise = torch.randn(walk_length, node_features.shape[-1])
+    return {
+        "random_noise": random_noise
+    }

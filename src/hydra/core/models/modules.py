@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from tqdm import tqdm
+from tqdm.rich import tqdm
 import lightning as L
 import torch.nn.functional as F
 import logging
@@ -34,7 +34,7 @@ class HypergraphBetaVAE(L.LightningModule):
         self.x_kl_weight = x_kl_weight
         self.y_kl_weight = y_kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
-        self.weight_decay = weight_decay or 1e-5
+        self.weight_decay = weight_decay or 0
         self.model_size_config = ModelSize(model_size_config).cfg
         self.vertex_encoding = vertex_encoding
         self.patience = patience
@@ -123,7 +123,7 @@ class HypergraphBetaVAE(L.LightningModule):
         init_hypergraph_decoder(self.hypergraph_decoder)
         if self.vertex_encoding:
             init_hypergraph_encoder(self.node_features_decoder)
-        
+
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(),
                                       lr=self.learning_rate,
@@ -265,6 +265,8 @@ class HypergraphBetaVAE(L.LightningModule):
 
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
+from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
+
 class DiffusionTransformer(L.LightningModule):
 
     # TODO: Pass sampling mode ddpm / ddim
@@ -281,6 +283,7 @@ class DiffusionTransformer(L.LightningModule):
         self.model_size_config = ModelSize(model_size_config).cfg
         self.train_noise_scheduler = DDPMScheduler(
             num_train_timesteps=T,
+            prediction_type="v_prediction"
         )
         self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
         self.save_hyperparameters()
@@ -309,10 +312,16 @@ class DiffusionTransformer(L.LightningModule):
             ),
             ModelCheckpoint(
                 mode="min",
-                monitor="validation/loss",
+                monitor="training/loss",
                 filename="best",
                 save_top_k=1,
                 every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+            ),
+            EMAWeightAveraging(
+                decay=0.999,
+                update_every_n_steps=1,
+                update_starting_at_step=0,
+                use_buffers=True,
             ),
         ]
 
@@ -403,17 +412,24 @@ class DiffusionTransformer(L.LightningModule):
 
     def predict_step(self, batch, batch_idx):
         z_x_T, z_y_T = batch
+
         B, N, F = z_x_T.size()
         _, M, _ = z_y_T.size()
 
-        scheduler = self.sampling_noise_scheduler
+        scheduler = self.train_noise_scheduler
+
+        if not self.bvae.vertex_encoding:
+            z_x_T = self.bvae.x_adapter(z_x_T)
 
         for t in tqdm(scheduler.timesteps):
+            t = t.to(self.device)
             # x_v prediction is only used if nodes are encoded
-            x_v_pred, y_v_pred = self(z_x_T, z_y_T, t)
+            x_v_pred, y_v_pred = self(z_x_T, z_y_T, t.expand(B, 1))
             if self.bvae.vertex_encoding: # Reverse on nodes only if the model encodes them
+                z_x_T = scheduler.scale_model_input(z_x_T, t)
                 x_step_out = scheduler.step(x_v_pred, t, z_x_T)
                 z_x_T = x_step_out.prev_sample
+            z_y_T = scheduler.scale_model_input(z_y_T, t)
             y_step_out = scheduler.step(y_v_pred, t, z_y_T)
             z_y_T = y_step_out.prev_sample
 
@@ -427,4 +443,4 @@ class DiffusionTransformer(L.LightningModule):
         # This mask indicates hypergraph membership for each node
         membership_mask = incidence_matrices.sum(dim=2).bool() # [B, num_nodes]
 
-        return h_logits, incidence_matrices, x_rec, membership_mask, z_x_T, z_y_T
+        return incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T

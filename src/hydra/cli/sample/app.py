@@ -27,12 +27,6 @@ def bvae(
     alpha: Annotated[float, typer.Option("--alpha", help="Metropolis-Hastings acceptance probability parameter.")] = 0.0,
     walk_length: Annotated[int, typer.Option("--walk-length", help="Length of each random walk.")] = 256,
     samples_per_hyperedge: Annotated[int, typer.Option("--samples-per-hyperedge", help="Number of random walks to sample per hyperedge.")] = 1,
-    data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
-    retain_lcc: Annotated[bool, typer.Option("--retain-lcc/--no-retain-lcc", help="Whether to retain only the largest connected component of the hypergraph.")] = True,
-    train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
-    val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
-    predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
-    val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
 ):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
@@ -51,11 +45,17 @@ def bvae(
                 ckpt_path)
 
 @app.command()
-def ddm(ctx: typer.Context):
+def ddm(ctx: typer.Context,
+        walk_length: Annotated[int, typer.Option("--walk-length", help="Length of each random walk.")] = 256):
     """Train a conditional model on the specified dataset."""
     huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
     dataloader_config = ctx.obj['dataloader_config']
     datamodule_config = ctx.obj['datamodule_config']
-    print(ctx.obj)
-    # sample_ddm(
-    # )
+    ckpt_path = ctx.obj['ckpt_path']
+    sample_ddm(
+        datamodule_config,
+        huggingface_datasets_config,
+        dataloader_config,
+        walk_length,
+        ckpt_path
+    )

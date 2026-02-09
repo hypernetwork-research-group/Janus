@@ -4,7 +4,7 @@ import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from hydra.core.models.modules import DiffusionTransformer
+from hydra.core.models.modules import DiffusionTransformer, HypergraphBetaVAE
 from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
 from hydra.core.data.datamodules import HypergraphDataModule
 
@@ -40,8 +40,12 @@ def train_ddm(
     # Here we should determine the model name:
     # DDM-HyDRA-{model_size}/vertex_encoding
 
-    model_name = f"DDM-HyDRA-{model_size_config}" # TODO: This should probably stay be defined in the model
+    bvae = HypergraphBetaVAE.load_from_checkpoint(str(bvae_ckpt))
+
+    model_name = f"DDM-HyDRAA{'-V' if bvae.vertex_encoding else ''}-{model_size_config}" # TODO: This should probably stay be defined in the model
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"
+
+    del bvae # We don't need the bvae anymore, we just needed to load it to determine the model name
 
     trainer = L.Trainer(
         default_root_dir=default_root_dir,

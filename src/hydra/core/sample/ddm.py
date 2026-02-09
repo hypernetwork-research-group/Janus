@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import lightning as L
+from tqdm.rich import tqdm
+import torch
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
@@ -12,6 +14,7 @@ def sample_ddm(
     datamodule_config: DataModuleConfig,
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
     dataloader_config: DataLoaderConfig,
+    walk_length: int,
     ckpt_path: Path,
 ):
 
@@ -22,9 +25,6 @@ def sample_ddm(
         logger=False,
         enable_checkpointing=False,
     )
-
-    print(huggingface_datasets_config.dataset_name)
-    print("aaa")
 
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
@@ -37,12 +37,32 @@ def sample_ddm(
                         num_workers=dataloader_config.num_workers,
                         persistent_workers=dataloader_config.persistent_workers,
                         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-                        val_size=datamodule_config.val_size,)
+                        val_size=datamodule_config.val_size,
+                        walk_length=walk_length,
+                        only_node_features=True)
 
-    return
+    hyperedges = set()
 
-    predictions = trainer.predict(
-        model,
-        datamodule=datamodule,
-        ckpt_path=ckpt_path,
-    )
+    while len(hyperedges) < 1512:
+        predictions = trainer.predict(
+            model,
+            datamodule=datamodule,
+            ckpt_path=ckpt_path,
+        )
+
+        for incidence_matrices, *_ in tqdm(predictions):
+            for incidence_matrix in incidence_matrices:
+                for col in incidence_matrix.T:
+                    if len(hyperedges) >= 1512:
+                        break
+                    nodes = torch.nonzero(col).squeeze().tolist()
+                    if isinstance(nodes, int):
+                        nodes = [nodes]
+                    if len(nodes) < 1:
+                        continue
+                    nodes = tuple(sorted(nodes))
+                    hyperedges.add(nodes)
+        dist = [0] * 143
+        for he in hyperedges:
+            dist[len(he)] += 1
+        print(dist)
