@@ -5,10 +5,11 @@ from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, Lea
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from hydra.core.models.modules import DiffusionTransformer
-from hydra.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
+from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
 from hydra.core.data.datamodules import HypergraphDataModule
 
 def train_ddm(
+    random_walk_config: RandomWalkConfig,
     datamodule_config: DataModuleConfig,
     dataloader_config: DataLoaderConfig,
     trainer_config: TrainerConfig,
@@ -22,14 +23,14 @@ def train_ddm(
                         data_dir=datamodule_config.data_dir,
                         retain_lcc=datamodule_config.retain_lcc,
                         cache_dir=huggingface_datasets_config.cache_dir,
-                        p=datamodule_config.p,
-                        q=datamodule_config.q,
-                        alpha=datamodule_config.alpha,
-                        walk_length=datamodule_config.walk_length,
+                        p=random_walk_config.p,
+                        q=random_walk_config.q,
+                        alpha=random_walk_config.alpha,
+                        walk_length=random_walk_config.walk_length,
                         train_split=datamodule_config.train_split,
                         val_split=datamodule_config.val_split,
                         predict_split=datamodule_config.predict_split,
-                        samples_per_hyperedge=datamodule_config.samples_per_hyperedge,
+                        samples_per_hyperedge=random_walk_config.samples_per_hyperedge,
                         pin_memory=dataloader_config.pin_memory,
                         num_workers=dataloader_config.num_workers,
                         persistent_workers=dataloader_config.persistent_workers,
@@ -48,7 +49,7 @@ def train_ddm(
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         log_every_n_steps=10, # TODO: Add this to trainer configuration
         check_val_every_n_epoch=1,
-        enable_checkpointing=False, 
+        enable_checkpointing=False,
         logger=TensorBoardLogger(
             save_dir=default_root_dir, # base path
             name="logs",  # replaces the default "lightning_logs"

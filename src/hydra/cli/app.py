@@ -7,7 +7,7 @@ import rich.logging
 
 from .train.app import app as train_app
 from .sample.app import app as sample_app
-from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig
+from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,13 @@ def main_callback(
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
     drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
+    # DataModuleConfig options
+    data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
+    retain_lcc: Annotated[bool, typer.Option("--retain-lcc/--no-retain-lcc", help="Whether to retain only the largest connected component of the hypergraph.")] = True,
+    train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
+    val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
+    predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
+    val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
     # Logging options
     log_level: Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Option("--log-level", help="Set the logging level.")] = "WARNING",
 ):
@@ -45,6 +52,14 @@ def main_callback(
                                         batch_size=batch_size,
                                         drop_last=drop_last)
     ctx.obj['dataloader_config'] = dataloader_config
+
+    datamodule_config = DataModuleConfig(data_dir=data_dir,
+                                        retain_lcc=retain_lcc,
+                                        train_split=train_split,
+                                        val_split=val_split,
+                                        predict_split=predict_split,
+                                        val_size=val_size)
+    ctx.obj['datamodule_config'] = datamodule_config
 
 def main() -> None:
     # Entry point for console scripts

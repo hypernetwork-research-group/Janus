@@ -3,12 +3,15 @@ from pathlib import Path
 from typing import Union, List
 
 @dataclass
-class DataModuleConfig:
+class RandomWalkConfig:
     p: float
     q: float
     alpha: float
     walk_length: int
     samples_per_hyperedge: int
+
+@dataclass
+class DataModuleConfig:
     data_dir: Path
     retain_lcc: bool
     train_split: str
