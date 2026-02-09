@@ -2,13 +2,13 @@
 ## Training
 
 ```bash
-hydra train [DATASET] bvae --vertex-encoding/--no-vertex-encoding
+hydra [DATASET] <OPTIONS> train <OPTIONS> bvae <OPTIONS> --vertex-encoding/--no-vertex-encoding
 ```
 
 and then
 
 ```
-hydra train [DATASET] ddm [bvae_version]
+hydra [DATASET] train <OPTIONS> ddm <OPTIONS> --bvae-ckpt
 ```
 
 ### Model size
