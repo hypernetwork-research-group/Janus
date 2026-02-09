@@ -85,13 +85,6 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
   </tbody>
 </table>
 
-<iframe
-  src="https://huggingface.co/datasets/daqh/email-Enron/embed/viewer/default/full"
-  frameborder="0"
-  width="100%"
-  height="560px"
-></iframe>
-
 ### Dataset structure
 
 data/
