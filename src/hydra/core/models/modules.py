@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from tqdm import tqdm
+from tqdm.rich import tqdm
 import lightning as L
 import torch.nn.functional as F
 import logging
@@ -423,7 +423,7 @@ class DiffusionTransformer(L.LightningModule):
         if not self.bvae.vertex_encoding:
             z_x_T = self.bvae.x_adapter(z_x_T)
 
-        for t in tqdm(scheduler.timesteps):
+        for t in tqdm(list(scheduler.timesteps), leave=False):
             t = t.to(self.device)
             # x_v prediction is only used if nodes are encoded
             x_v_pred, y_v_pred = self(z_x_T, z_y_T, t.expand(B, 1))
