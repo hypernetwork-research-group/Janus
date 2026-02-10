@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from tqdm.rich import tqdm
+from tqdm import tqdm
 import lightning as L
 import torch.nn.functional as F
 import logging
@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import LearningRateFinder, LambdaCallback, Earl
 from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_decoder, init_dit_weights
 from .components import DiT, HGAT, HypergraphDecoder
 from .utils import batch_index_contrastive_loss
-from .enums import ModelSize
+from .enums import ModelSize, DDM_CONFIGS, BVAE_CONFIGS
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class HypergraphBetaVAE(L.LightningModule):
         self.y_kl_weight = y_kl_weight
         self.learning_rate = learning_rate or DEFAULT_LR
         self.weight_decay = weight_decay or 0
-        self.model_size_config = ModelSize(model_size_config).cfg
+        self.model_size_config = BVAE_CONFIGS[model_size_config]
         self.vertex_encoding = vertex_encoding
         self.patience = patience
         self.node_feature_dim = num_node_features
@@ -273,17 +273,19 @@ class DiffusionTransformer(L.LightningModule):
     def __init__(self,
                  T: int,
                  bvae_ckpt: str,
-                 scheduler_type: str = "cosine",
+                 scheduler_type: str = "cosine", # TODO: Remove this (unused)
                  learning_rate: float | None = None,
                  model_size_config: str = ModelSize.M.value,):
         super().__init__()
         self.bvae_ckpt = bvae_ckpt
         self.scheduler_type = scheduler_type
         self.learning_rate = learning_rate or DEFAULT_LR
-        self.model_size_config = ModelSize(model_size_config).cfg
+        self.model_size_config = DDM_CONFIGS[model_size_config]
         self.train_noise_scheduler = DDPMScheduler(
             num_train_timesteps=T,
-            prediction_type="v_prediction"
+            prediction_type="v_prediction",
+            rescale_betas_zero_snr=True,
+            timestep_spacing="trailing"
         )
         self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
         self.save_hyperparameters()
@@ -317,12 +319,12 @@ class DiffusionTransformer(L.LightningModule):
                 save_top_k=1,
                 every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
             ),
-            EMAWeightAveraging(
-                decay=0.999,
-                update_every_n_steps=1,
-                update_starting_at_step=0,
-                use_buffers=True,
-            ),
+            # EMAWeightAveraging(
+            #     decay=0.999,
+            #     update_every_n_steps=1,
+            #     update_starting_at_step=0,
+            #     use_buffers=True,
+            # ),
         ]
 
     def configure_model(self):
