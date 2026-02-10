@@ -319,12 +319,12 @@ class DiffusionTransformer(L.LightningModule):
                 save_top_k=1,
                 every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
             ),
-            # EMAWeightAveraging(
-            #     decay=0.999,
-            #     update_every_n_steps=1,
-            #     update_starting_at_step=0,
-            #     use_buffers=True,
-            # ),
+            EMAWeightAveraging(
+                decay=0.999,
+                update_every_n_steps=1,
+                update_starting_at_step=0,
+                use_buffers=True,
+            ),
         ]
 
     def configure_model(self):
@@ -380,7 +380,7 @@ class DiffusionTransformer(L.LightningModule):
 
         t = torch.randint(0,
                           self.train_noise_scheduler.config.num_train_timesteps,
-                          (B, 1),
+                          (B,),
                           device=self.device,
                           dtype=torch.int64)
 
@@ -394,7 +394,7 @@ class DiffusionTransformer(L.LightningModule):
         y_noise = torch.randn_like(y_z)
         y_t = self.train_noise_scheduler.add_noise(y_z, y_noise, t)
         y_target = self.train_noise_scheduler.get_velocity(y_z, y_noise, t) # v prediction
-        x_v_pred, y_v_pred = self.forward(x_t, y_t, t)
+        x_v_pred, y_v_pred = self.forward(x_t, y_t, t.unsqueeze(-1))
 
         if self.bvae.vertex_encoding:
             x_loss = F.mse_loss(x_v_pred, x_target)
