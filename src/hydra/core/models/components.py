@@ -358,10 +358,10 @@ class MLP(nn.Module):
 
 class TimeConditioning(nn.Module):
 
-    def __init__(self, embedding_dim: int):
+    def __init__(self, embedding_dim: int, hidden_channels: int):
         super(TimeConditioning, self).__init__()
         self.embedding_dim = embedding_dim
-        self.mlp = MLP(embedding_dim, embedding_dim * 4, dropout=0.0)
+        self.mlp = MLP(embedding_dim, hidden_channels, dropout=0.0)
 
     def sinusoidal_embedding(self, t: torch.Tensor, dim: int, max_period: int = 10000) -> torch.Tensor:
         half = dim // 2
@@ -445,7 +445,7 @@ class DiT(nn.Module):
                  cross_attention: bool = False):
         super(DiT, self).__init__()
         self.input_proj = nn.Linear(in_channels, hidden_channels)
-        self.time_cond = TimeConditioning(hidden_channels)
+        self.time_cond = TimeConditioning(hidden_channels, hidden_channels)
         self.blocks = nn.ModuleList([
             DiTBlock(hidden_channels, num_heads, cross_attention) for _ in range(num_blocks)
         ])
