@@ -13,12 +13,14 @@ class ModelSize(Enum):
     M = auto()
     L = auto()
 
-    @property
-    def cfg(self) -> ModelSizeConfig:
-        return _CONFIGS[self]
+BVAE_CONFIGS = {
+    ModelSize.S.name: ModelSizeConfig(128, 1, 2),
+    ModelSize.M.name: ModelSizeConfig(256, 2, 4),
+    ModelSize.L.name: ModelSizeConfig(512, 3, 8),
+}
 
-_CONFIGS = {
-    ModelSize.S: ModelSizeConfig(128, 1, 2),
-    ModelSize.M: ModelSizeConfig(256, 2, 4),
-    ModelSize.L: ModelSizeConfig(512, 3, 8),
+DDM_CONFIGS = {
+    # ModelSize.S.name: ModelSizeConfig(128, 1, 2),
+    ModelSize.M.name: ModelSizeConfig(256, 2, 4),
+    ModelSize.L.name: ModelSizeConfig(512, 3, 8),
 }
