@@ -12,6 +12,7 @@ from .transforms import add_random_noise, transform, process
 
 logger = logging.getLogger(__name__)
 
+# TODO: Split this datamodule in two different datamodules, one for the BVAE and one for the DDM inference
 class HypergraphDataModule(L.LightningDataModule):
 
     def __init__(self,
