@@ -12,7 +12,61 @@ from .transforms import add_random_noise, transform, process
 
 logger = logging.getLogger(__name__)
 
-# TODO: Split this datamodule in two different datamodules, one for the BVAE and one for the DDM inference
+class FeaturesDataModule(L.LightningDataModule):
+
+    def __init__(self,
+                 dataset_name: str,
+                 cache_dir: Path = Path("./cache"),
+                 data_dir: Path = Path("./data"),
+                 batch_size: int = 32,
+                 num_workers: int | None = None,
+                 persistent_workers: bool = True,
+                 pin_memory: bool = True,
+                 drop_last: bool = False,
+                 train_split: str = "full",
+                 val_split: str = "full",
+                 predict_split: str = "full",
+                 val_size: Union[float, int, None] = None):
+        super().__init__()
+        self.dataset_name = dataset_name
+        self.cache_dir = cache_dir
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.num_workers = num_workers or cpu_count()
+        self.persistent_workers = persistent_workers
+        self.pin_memory = pin_memory
+        self.drop_last = drop_last
+        self.train_split = train_split
+        self.val_split = val_split
+        self.predict_split = predict_split
+        self.val_size = 0.1 if not val_size else int(val_size) if val_size >= 1 else val_size
+
+        self.dataset_dir = data_dir / dataset_name
+        self.processed_dataset_dir = self.dataset_dir / "processed"
+
+    def prepare_data(self):
+        # Loading the dataset from HuggingFace Datasets
+        # This will be stored in the HuggingFace Datasets cache directory, so it won't be redownloaded every time
+        dataset = load_dataset(self.dataset_name,
+                               cache_dir=self.cache_dir / "datasets")
+
+        # Preprocess the dataset
+        # The preprocessing behaviour is described in the `process` function
+        # At the end of this, the `hif`` columns will be removed
+        # Additionally, `node_features` and `hyperedge_features` columns will be added
+        # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
+        dataset = dataset.map(process,
+                         load_from_cache_file=True,
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
+                         fn_kwargs={
+                            "retain_lcc": self.retain_lcc,
+                         })
+
+        # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
+        if not self.processed_dataset_dir.exists():
+            dataset.save_to_disk(self.processed_dataset_dir)
+
+# TODO: Split this datamodule in two different datamodules, one for the BVAE and one for the DDM inference ^^^
 class HypergraphDataModule(L.LightningDataModule):
 
     def __init__(self,
@@ -114,8 +168,8 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
         if self.train_split == self.val_split:
-            if len(dataset[self.train_split]) > 1:
-                temp_ = dataset[self.train_split].train_test_split(test_size=self.val_size, shuffle=True, seed=42) # TODO: pass seed
+            if len(dataset[self.train_split]) > 1 and self.val_size > 0:
+                temp_ = dataset[self.train_split].train_test_split(test_size=self.val_size, shuffle=True) # TODO: pass seed
             else:
                 temp_ = DatasetDict({
                     "train": dataset[self.train_split],
