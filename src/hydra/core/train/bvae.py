@@ -51,6 +51,7 @@ def train_bvae(
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
         log_every_n_steps=10, # TODO: Add this to trainer configuration
         check_val_every_n_epoch=1,
+        min_epochs=10000, # TODO: Add this to trainer configuration
         enable_checkpointing=False,
         logger=TensorBoardLogger(
             save_dir=default_root_dir, # base path

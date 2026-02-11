@@ -284,8 +284,11 @@ class DiffusionTransformer(L.LightningModule):
         self.train_noise_scheduler = DDPMScheduler(
             num_train_timesteps=T,
             prediction_type="v_prediction",
+            timestep_spacing="trailing",
+            beta_schedule="linear",
             rescale_betas_zero_snr=True,
-            timestep_spacing="trailing"
+            clip_sample=False,
+            thresholding=False,
         )
         self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
         self.save_hyperparameters()
@@ -330,8 +333,7 @@ class DiffusionTransformer(L.LightningModule):
     def configure_model(self):
         self.bvae = HypergraphBetaVAE.load_from_checkpoint(self.bvae_ckpt,
                                                            map_location="cpu",
-                                                           weights_only=False)
-        self.bvae.freeze()
+                                                           weights_only=False).freeze()
 
         if self.bvae.vertex_encoding:
             self.vertices_dit = DiT(
@@ -382,7 +384,7 @@ class DiffusionTransformer(L.LightningModule):
                           self.train_noise_scheduler.config.num_train_timesteps,
                           (B,),
                           device=self.device,
-                          dtype=torch.int64)
+                          dtype=torch.long)
 
         if self.bvae.vertex_encoding:
             x_noise = torch.randn_like(x_z)
@@ -399,6 +401,7 @@ class DiffusionTransformer(L.LightningModule):
         if self.bvae.vertex_encoding:
             x_loss = F.mse_loss(x_v_pred, x_target)
             self.log("training/x_loss", x_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
+
         else:
             x_loss = 0.0
 
@@ -418,20 +421,19 @@ class DiffusionTransformer(L.LightningModule):
         B, N, F = z_x_T.size()
         _, M, _ = z_y_T.size()
 
-        scheduler = self.train_noise_scheduler
+        scheduler = self.sampling_noise_scheduler
+        self.sampling_noise_scheduler.set_timesteps(self.sampling_noise_scheduler.config.num_train_timesteps, device=self.device)
 
         if not self.bvae.vertex_encoding:
             z_x_T = self.bvae.x_adapter(z_x_T)
 
-        for t in tqdm(list(scheduler.timesteps), leave=False):
+        for t in tqdm(scheduler.timesteps, leave=False):
             t = t.to(self.device)
             # x_v prediction is only used if nodes are encoded
             x_v_pred, y_v_pred = self(z_x_T, z_y_T, t.expand(B, 1))
             if self.bvae.vertex_encoding: # Reverse on nodes only if the model encodes them
-                z_x_T = scheduler.scale_model_input(z_x_T, t)
                 x_step_out = scheduler.step(x_v_pred, t, z_x_T)
                 z_x_T = x_step_out.prev_sample
-            z_y_T = scheduler.scale_model_input(z_y_T, t)
             y_step_out = scheduler.step(y_v_pred, t, z_y_T)
             z_y_T = y_step_out.prev_sample
 

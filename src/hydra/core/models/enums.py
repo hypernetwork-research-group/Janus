@@ -20,7 +20,7 @@ BVAE_CONFIGS = {
 }
 
 DDM_CONFIGS = {
-    # ModelSize.S.name: ModelSizeConfig(128, 1, 2),
+    ModelSize.S.name: ModelSizeConfig(128, 1, 2),
     ModelSize.M.name: ModelSizeConfig(256, 2, 4),
     ModelSize.L.name: ModelSizeConfig(512, 3, 8),
 }

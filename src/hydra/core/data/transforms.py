@@ -1,10 +1,9 @@
 import torch
 import xgi
 from concurrent.futures import ProcessPoolExecutor
-from scipy.sparse.linalg import eigsh
 from tqdm.auto import tqdm
 
-from .utils import metropolis_hastings_biased_random_walk, patch_nodes, hypergraph_laplacian_zhou
+from .utils import metropolis_hastings_biased_random_walk, patch_nodes
 
 def process(batch,
             retain_lcc: bool):
