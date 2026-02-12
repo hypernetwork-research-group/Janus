@@ -1,6 +1,6 @@
 This repository contains a Python package that provides the following code:
 
-- 🔥 PyTorch implementation of HyDRA-$\beta\text{-VAE}$ and HyDRA-DDM;
+- 🔥 PyTorch implementation of HyDRA $\beta\text{-VAE}$ and HyDRA DDM;
 - ⚡️ Hydra-* training script using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/);
 - 👨‍💻 Hypergraph Analysis script to compare generated vs target dataset hypergraphs;
 - 📄 Results report script to construct table and charts from generation results;
