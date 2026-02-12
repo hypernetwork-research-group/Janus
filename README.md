@@ -1,3 +1,9 @@
+This repository contains a Python package that provides the following code:
+
+- 🔥 PyTorch implementation of HyDRA-$\beta\text{-VAE}$ and HyDRA-DDM;
+- ⚡️ Hydra-* training script using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/);
+- ⌨️ A simple command line interface that can be used to launch training and sampling scripts. 
+
 ## Setup
 
 ```bash
