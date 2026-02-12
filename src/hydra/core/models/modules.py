@@ -176,7 +176,7 @@ class HypergraphBetaVAE(L.LightningModule):
         y = batch['hyperedge_features']     # [B, num_hyperedges, hyperedge_feature_dim]
         h = batch['incidence_matrix']       # [B, num_nodes, num_hyperedges]
         s = batch['touched_hyperedges']     # [B, num_hyperedges]
-        m = batch['nodes_mask']             # [B, num_nodes] TODO: Use this
+        m = batch['nodes_mask']             # [B, num_nodes]
 
         h_logits, x_r, _, _, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 
@@ -221,7 +221,7 @@ class HypergraphBetaVAE(L.LightningModule):
         y = batch['hyperedge_features']
         h = batch['incidence_matrix']
         s = batch['touched_hyperedges']
-        m = batch['nodes_mask']             # [B, num_nodes] TODO: Use this
+        m = batch['nodes_mask']             # [B, num_nodes]
 
         h_logits, x_r, _, _, x_mu, y_mu, x_log_var, y_log_var = self.forward(x, y, h)    # Encode
 

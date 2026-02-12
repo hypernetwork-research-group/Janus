@@ -42,7 +42,7 @@ def train_ddm(
 
     bvae = HypergraphBetaVAE.load_from_checkpoint(str(bvae_ckpt))
 
-    model_name = f"DDM-HyDRA{'-V' if bvae.vertex_encoding else ''}-{model_size_config}" # TODO: This should probably stay be defined in the model
+    model_name = f"DDM-HyDRA{'-V' if bvae.vertex_encoding else ''}-{model_size_config}" # TODO: This should probably be defined in the model
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"
 
     del bvae # We don't need the bvae anymore, we just needed to load it to determine the model name
