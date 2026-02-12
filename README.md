@@ -91,11 +91,19 @@ The learning rate is determined using a learning rate finder strategy.
 
 ### Reproducibility
 
+#### Training
+
 In order to run the training configuration we used in our paper, run the following commands to train both models:
 
 ```bash
 hydra --batch-size 32 [DATASET] train --model-size S bvae
 hydra --batch-size 32 --val-size 0 [DATASET] train --model-size S --samples-per-hyperedge 2 ddm --bvae-ckpt logs/[DATASET]/BVAE-HyDRA-S/logs/version_0/checkpoints/best.ckpt
+```
+
+#### Sampling
+
+```bash
+hydra --batch-size 32 [DATASET] sample --ckpt logs/[DATASET]/logs/version_0/DDM-HyDRA-S/checkpoints/last.ckpt ddm
 ```
 
 ## Datasets
