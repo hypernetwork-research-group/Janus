@@ -265,6 +265,7 @@ class HypergraphBetaVAE(L.LightningModule):
 
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
+from typing import Literal
 from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
 
 class DiffusionTransformer(L.LightningModule):
@@ -273,14 +274,15 @@ class DiffusionTransformer(L.LightningModule):
     def __init__(self,
                  T: int,
                  bvae_ckpt: str,
-                 scheduler_type: str = "cosine", # TODO: Remove this (unused)
-                # TODO: Add option (inference_timesteps) = None by default uses the same number of timesteps as training
+                 num_inference_steps: int | None = None,
+                 inference_scheduler_type: Literal["ddpm", "ddim"] = "ddpm",
                 # TODO: Add option sampler (ddpm, ddim, etc.) defaults to ddpm
                  learning_rate: float | None = None,
                  model_size_config: str = ModelSize.M.value,):
         super().__init__()
         self.bvae_ckpt = bvae_ckpt
-        self.scheduler_type = scheduler_type
+        self.num_inference_steps = num_inference_steps or T
+        self.inference_scheduler_type = inference_scheduler_type
         self.learning_rate = learning_rate or DEFAULT_LR
         self.model_size_config = DDM_CONFIGS[model_size_config]
         self.train_noise_scheduler = DDPMScheduler(
