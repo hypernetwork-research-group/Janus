@@ -1,12 +1,13 @@
+from typing import Literal
+
 import torch
 import torch.nn as nn
 from tqdm.rich import tqdm
 import lightning as L
 import torch.nn.functional as F
 import logging
-
 from diffusers import DDPMScheduler
-from lightning.pytorch.callbacks import LearningRateFinder, LambdaCallback, EarlyStopping, ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_decoder, init_dit_weights
 from .components import DiT, HGAT, HypergraphDecoder
@@ -265,8 +266,9 @@ class HypergraphBetaVAE(L.LightningModule):
 
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
-from typing import Literal
 from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
+
+type SchedulerType = Literal["ddpm", "ddim"]
 
 class DiffusionTransformer(L.LightningModule):
 
@@ -275,8 +277,7 @@ class DiffusionTransformer(L.LightningModule):
                  T: int,
                  bvae_ckpt: str,
                  num_inference_steps: int | None = None,
-                 inference_scheduler_type: Literal["ddpm", "ddim"] = "ddpm",
-                # TODO: Add option sampler (ddpm, ddim, etc.) defaults to ddpm
+                 inference_scheduler_type: SchedulerType = "ddpm",
                  learning_rate: float | None = None,
                  model_size_config: str = ModelSize.M.value,):
         super().__init__()
@@ -294,7 +295,12 @@ class DiffusionTransformer(L.LightningModule):
             clip_sample=False,
             thresholding=False,
         )
-        self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
+        if self.inference_scheduler_type == "ddpm":
+            self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
+        elif self.inference_scheduler_type == "ddim":
+            self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config, timestep_spacing="leading")
+        else:
+            raise ValueError(f"Invalid inference_scheduler_type: {self.inference_scheduler_type}. Must be one of {SchedulerType.__args__}")
         self.save_hyperparameters()
 
     def on_train_epoch_end(self):
@@ -426,7 +432,7 @@ class DiffusionTransformer(L.LightningModule):
         _, M, _ = z_y_T.size()
 
         scheduler = self.sampling_noise_scheduler
-        self.sampling_noise_scheduler.set_timesteps(self.sampling_noise_scheduler.config.num_train_timesteps // 10, device=self.device)
+        self.sampling_noise_scheduler.set_timesteps(self.num_inference_steps, device=self.device)
 
         if not self.bvae.vertex_encoding:
             z_x_T = self.bvae.x_adapter(z_x_T)
