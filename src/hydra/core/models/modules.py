@@ -274,6 +274,8 @@ class DiffusionTransformer(L.LightningModule):
                  T: int,
                  bvae_ckpt: str,
                  scheduler_type: str = "cosine", # TODO: Remove this (unused)
+                # TODO: Add option (inference_timesteps) = None by default uses the same number of timesteps as training
+                # TODO: Add option sampler (ddpm, ddim, etc.) defaults to ddpm
                  learning_rate: float | None = None,
                  model_size_config: str = ModelSize.M.value,):
         super().__init__()
@@ -422,7 +424,7 @@ class DiffusionTransformer(L.LightningModule):
         _, M, _ = z_y_T.size()
 
         scheduler = self.sampling_noise_scheduler
-        self.sampling_noise_scheduler.set_timesteps(self.sampling_noise_scheduler.config.num_train_timesteps, device=self.device)
+        self.sampling_noise_scheduler.set_timesteps(self.sampling_noise_scheduler.config.num_train_timesteps // 10, device=self.device)
 
         if not self.bvae.vertex_encoding:
             z_x_T = self.bvae.x_adapter(z_x_T)
