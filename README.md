@@ -16,9 +16,6 @@ hydra [DATASET] train <OPTIONS> ddm <OPTIONS> --bvae-ckpt
 The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` option of the `hydra train` command. The following models sizes are available.
 
 <table>
-  <caption>
-    Model sizes available for the BETA-VAE.
-  </caption>
   <thead>
     <tr>
       <td>Size</td>
@@ -42,12 +39,12 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
     </tr>
     </tr>
   </tbody>
+  <caption>
+    Table 1. Model sizes available for the BETA-VAE.
+  </caption>
 </table>
 
 <table>
-  <caption>
-    Model sizes available for the DDM.
-  </caption>
   <thead>
     <tr>
       <td>Size</td>
@@ -71,6 +68,9 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
     </tr>
     </tr>
   </tbody>
+  <caption>
+    Table 2. Model sizes available for the DDM.
+  </caption>
 </table>
 
 ## Datasets
