@@ -1,3 +1,10 @@
+## Setup
+
+```bash
+pip install git+https://github.com/daqh/HyDRA
+```
+
+**Requirements**. Additionally to the code provided in this repository, you should install `torch` and `lightning`.
 
 ## Training
 
