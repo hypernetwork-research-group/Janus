@@ -73,6 +73,22 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
   </tbody>
 </table>
 
+### Model hyperparameters
+
+We trained both models fixing the following hyperparameters.
+
+- Shared Hyperparameters
+  - batch size 32
+  - samples per hyperedge 2
+  - biased random walk p 2.0
+  - biased random walk q 0.5
+- $\beta\text{-VAE}$
+  - patience 100
+- DDM
+  - training timesteps 1000
+
+The learning rate is determined using a learning rate finder strategy.
+
 ## Datasets
 
 <table>
