@@ -270,6 +270,50 @@ from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
 
 type SchedulerType = Literal["ddpm", "ddim"]
 
+def compute_snr(noise_scheduler: DDPMScheduler, timesteps: torch.LongTensor) -> torch.Tensor:
+    """
+    Returns SNR(t) for each element in `timesteps` (shape: [batch]).
+    """
+    alphas_cumprod = noise_scheduler.alphas_cumprod.to(device=timesteps.device)  # [num_train_timesteps]
+    sqrt_alphas_cumprod = alphas_cumprod.sqrt()
+    sqrt_one_minus_alphas_cumprod = (1.0 - alphas_cumprod).sqrt()
+
+    # Gather per-sample values
+    alpha = sqrt_alphas_cumprod[timesteps].float()                  # [batch]
+    sigma = sqrt_one_minus_alphas_cumprod[timesteps].float()        # [batch]
+
+    # SNR = (alpha / sigma)^2
+    snr = (alpha / sigma) ** 2
+    return snr  # [batch]
+
+def min_snr_weighted_v_mse_loss(
+    noise_scheduler: DDPMScheduler,
+    model_pred_v: torch.Tensor,   # UNet output (v), shape [B,C,H,W]
+    latents: torch.Tensor,        # clean latents x0, shape [B,C,H,W]
+    noise: torch.Tensor,          # eps, shape [B,C,H,W]
+    timesteps: torch.LongTensor,  # [B]
+    snr_gamma: float = 5.0,
+) -> torch.Tensor:
+    assert noise_scheduler.config.prediction_type == "v_prediction", \
+        "This loss is for v_prediction. Set scheduler.config.prediction_type='v_prediction'."
+
+    # Target for v-prediction (Diffusers provides this convenience method)
+    target_v = noise_scheduler.get_velocity(latents, noise, timesteps)  # [B,C,H,W]
+
+    # Per-pixel MSE (no reduction yet)
+    loss = F.mse_loss(model_pred_v.float(), target_v.float(), reduction="none")  # [B,C,H,W]
+
+    # Reduce to per-sample loss
+    loss = loss.mean(dim=tuple(range(1, loss.ndim)))  # [B]
+
+    # Compute Min-SNR-γ weights for v-prediction:
+    # w(t) = min(SNR(t), gamma) / (SNR(t) + 1)
+    snr = compute_snr(noise_scheduler, timesteps)  # [B]
+    weights = torch.minimum(snr, torch.full_like(snr, snr_gamma)) / (snr + 1.0)  # [B]
+
+    # Apply weights and average
+    return (loss * weights).mean()
+
 class DiffusionTransformer(L.LightningModule):
 
     # TODO: Pass sampling mode ddpm / ddim
@@ -333,7 +377,7 @@ class DiffusionTransformer(L.LightningModule):
                 every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
             ),
             EMAWeightAveraging(
-                decay=0.999,
+                decay=0.99,
                 update_every_n_steps=1,
                 update_starting_at_step=0,
                 use_buffers=True,
@@ -415,7 +459,16 @@ class DiffusionTransformer(L.LightningModule):
         else:
             x_loss = 0.0
 
-        y_loss = F.mse_loss(y_v_pred, y_target)
+        y_loss = min_snr_weighted_v_mse_loss(
+            noise_scheduler=self.train_noise_scheduler,
+            model_pred_v=y_v_pred,
+            latents=y_z,
+            noise=y_noise,
+            timesteps=t,
+            snr_gamma=5.0
+        )
+
+        # y_loss = F.mse_loss(y_v_pred, y_target)
         self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         loss = x_loss + y_loss
         self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
