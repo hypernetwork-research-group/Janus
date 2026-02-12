@@ -2,6 +2,8 @@ This repository contains a Python package that provides the following code:
 
 - 🔥 PyTorch implementation of HyDRA-$\beta\text{-VAE}$ and HyDRA-DDM;
 - ⚡️ Hydra-* training script using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/);
+- 👨‍💻 Hypergraph Analysis script to compare generated vs target dataset hypergraphs;
+- 📄 Results report script to construct table and charts from generation results;
 - ⌨️ A simple command line interface that can be used to launch training and sampling scripts. 
 
 ## Setup
@@ -102,9 +104,23 @@ We trained both models fixing the following hyperparameters.
 
 The learning rate is determined using a learning rate finder strategy.
 
-### Reproducibility
+## Sampling
 
-#### Training
+## Analysis
+
+```bash
+hydra [DATASET] analysis --sample [SAMPLE] <OPTIONS>
+```
+
+## Report
+
+```bash
+hydra [DATASET] report
+```
+
+## Reproducibility
+
+### Training
 
 In order to run the training configuration we used in our paper, run the following commands to train both models:
 
@@ -113,7 +129,7 @@ hydra --batch-size 32 [DATASET] train --model-size S bvae
 hydra --batch-size 32 --val-size 0 [DATASET] train --model-size S --samples-per-hyperedge 2 ddm --bvae-ckpt logs/[DATASET]/BVAE-HyDRA-S/logs/version_0/checkpoints/best.ckpt
 ```
 
-#### Sampling
+### Sampling
 
 ```bash
 hydra --batch-size 32 [DATASET] sample --ckpt logs/[DATASET]/logs/version_0/DDM-HyDRA-S/checkpoints/last.ckpt ddm
