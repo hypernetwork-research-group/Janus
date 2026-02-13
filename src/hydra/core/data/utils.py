@@ -19,7 +19,15 @@ def metropolis_hastings_biased_random_walk(args):
             for _ in range(walk_length - 1):
                 neighbors = neighborhoods[current]
                 if not neighbors:
-                    break
+                    # Keep looping
+                    previous = current
+                    # current = current
+                    # Add the node to the touched nodes if it's not already there
+                    if current not in walk_touched_nodes:
+                        touched_nodes = members[current]
+                        walk_touched_nodes.update(touched_nodes)
+                    walk.append(current) # Insert at the beginning
+                    continue
                 cumulative_alphas = []
                 total_alpha = 0.0
                 for neighbor in neighbors:
@@ -33,7 +41,7 @@ def metropolis_hastings_biased_random_walk(args):
                     total_alpha += alpha
                     cumulative_alphas.append(total_alpha)
                 next_node = rng.choices(neighbors, k=1, cum_weights=cumulative_alphas)[0]
-                if a == 0:
+                if a == 0.0:
                     accept = True
                 else:
                     acceptance_prob = min(1, (G.degree[current] / G.degree[next_node]) ** a)
