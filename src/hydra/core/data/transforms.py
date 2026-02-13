@@ -9,10 +9,12 @@ def process(batch,
             retain_lcc: bool):
     hif_dict = batch
     hypergraph = xgi.convert.from_hif_dict(hif_dict, nodetype=int)
-    if retain_lcc:
-        hypergraph = xgi.largest_connected_hypergraph(hypergraph)
-        hif_dict = xgi.convert.to_hif_dict(hypergraph)
+    # if retain_lcc:
+    #     hypergraph: xgi.Hypergraph = xgi.largest_connected_hypergraph(hypergraph)
+    #     hif_dict = xgi.convert.to_hif_dict(hypergraph)
         # TODO: Perform logging
+        # TODO: After lcc retaining
+        # TODO: Perform reindexing of nodes and lcc retaining in the preprocessing script
 
     X = []
     for node in sorted(hypergraph.nodes):
