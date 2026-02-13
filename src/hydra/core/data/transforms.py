@@ -5,8 +5,7 @@ from tqdm.auto import tqdm
 
 from .utils import metropolis_hastings_biased_random_walk, patch_nodes
 
-def process(batch,
-            retain_lcc: bool):
+def process(batch):
     hif_dict = batch
     hypergraph = xgi.convert.from_hif_dict(hif_dict, nodetype=int)
     # if retain_lcc:

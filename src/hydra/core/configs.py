@@ -13,7 +13,6 @@ class RandomWalkConfig:
 @dataclass
 class DataModuleConfig:
     data_dir: Path
-    retain_lcc: bool
     train_split: str
     val_split: str
     predict_split: str

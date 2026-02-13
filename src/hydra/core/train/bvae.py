@@ -21,7 +21,6 @@ def train_bvae(
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
-                        retain_lcc=datamodule_config.retain_lcc,
                         cache_dir=huggingface_datasets_config.cache_dir,
                         p=random_walk_config.p,
                         q=random_walk_config.q,

@@ -57,10 +57,7 @@ class FeaturesDataModule(L.LightningDataModule):
         # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         dataset = dataset.map(process,
                          load_from_cache_file=True,
-                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
-                         fn_kwargs={
-                            "retain_lcc": self.retain_lcc,
-                         })
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"])
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
@@ -81,7 +78,6 @@ class HypergraphDataModule(L.LightningDataModule):
                  alpha: float = 0.0,
                  walk_length: int = 256,
                  samples_per_hyperedge: int = 1,
-                 retain_lcc: bool = True,
                  train_split: str = "full",
                  val_split: str = "full",
                  predict_split: str = "full",
@@ -100,7 +96,6 @@ class HypergraphDataModule(L.LightningDataModule):
         self.alpha = alpha
         self.walk_length = walk_length
         self.samples_per_hyperedge = samples_per_hyperedge
-        self.retain_lcc = retain_lcc
         self.only_node_features = only_node_features
         # DataLoaderConfig options
         self.pin_memory = pin_memory
@@ -139,10 +134,7 @@ class HypergraphDataModule(L.LightningDataModule):
         # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         dataset = dataset.map(process,
                          load_from_cache_file=True,
-                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
-                         fn_kwargs={
-                            "retain_lcc": self.retain_lcc,
-                         })
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"])
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():

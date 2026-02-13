@@ -28,7 +28,6 @@ def sample_ddm(
 
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                         data_dir=datamodule_config.data_dir,
-                        retain_lcc=datamodule_config.retain_lcc,
                         cache_dir=huggingface_datasets_config.cache_dir,
                         train_split=datamodule_config.train_split,
                         val_split=datamodule_config.val_split,

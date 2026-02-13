@@ -33,7 +33,6 @@ def main_callback(
     drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
     # DataModuleConfig options
     data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
-    retain_lcc: Annotated[bool, typer.Option("--retain-lcc/--no-retain-lcc", help="Whether to retain only the largest connected component of the hypergraph.")] = True,
     train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
     val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
     predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
@@ -58,7 +57,6 @@ def main_callback(
     ctx.obj['dataloader_config'] = dataloader_config
 
     datamodule_config = DataModuleConfig(data_dir=data_dir,
-                                        retain_lcc=retain_lcc,
                                         train_split=train_split,
                                         val_split=val_split,
                                         predict_split=predict_split,
