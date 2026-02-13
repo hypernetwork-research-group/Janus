@@ -11,9 +11,8 @@ def process(batch):
     # if retain_lcc:
     #     hypergraph: xgi.Hypergraph = xgi.largest_connected_hypergraph(hypergraph)
     #     hif_dict = xgi.convert.to_hif_dict(hypergraph)
+        # TODO: This will be performed in the dataset creation part
         # TODO: Perform logging
-        # TODO: After lcc retaining
-        # TODO: Perform reindexing of nodes and lcc retaining in the preprocessing script
 
     X = []
     for node in sorted(hypergraph.nodes):
