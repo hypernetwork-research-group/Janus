@@ -13,3 +13,4 @@ wheels/
 cache/
 /data/
 logs/
+examples/datasets/
