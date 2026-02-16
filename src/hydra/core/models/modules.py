@@ -84,7 +84,7 @@ class HypergraphBetaVAE(L.LightningModule):
             )
         else:
             self.x_adapter = nn.Sequential(
-                nn.LayerNorm(self.node_feature_dim, elementwise_affine=False),
+                nn.LayerNorm(self.node_feature_dim, elementwise_affine=True),
                 nn.Linear(self.node_feature_dim, self.latent_dim),
             )
         self.y_encoder_mu = HGAT(
@@ -199,7 +199,9 @@ class HypergraphBetaVAE(L.LightningModule):
         self.log("training/reconstruction_loss", reconstruction_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
 
         if self.vertex_encoding:
-            x_recon_loss = batch_index_contrastive_loss(x_r, m, temperature=1.0) # TODO: add mask on nodes that are not part of the hypergraph
+            # Here the contrastive loss is computed over the reconstructed node features x_r
+            # The mask is used to determine which nodes are real and which are padding, and the loss is only computed over the real nodes
+            x_recon_loss = batch_index_contrastive_loss(x_r, m, temperature=1.0)
             self.log("training/x_contrastive_loss", x_recon_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
         else:
             x_recon_loss = 0.0
@@ -316,7 +318,6 @@ def min_snr_weighted_v_mse_loss(
 
 class DiffusionTransformer(L.LightningModule):
 
-    # TODO: Pass sampling mode ddpm / ddim
     def __init__(self,
                  T: int,
                  bvae_ckpt: str,

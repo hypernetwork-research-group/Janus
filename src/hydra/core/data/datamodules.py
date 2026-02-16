@@ -12,10 +12,12 @@ from .transforms import add_random_noise, transform, process
 
 logger = logging.getLogger(__name__)
 
-class FeaturesDataModule(L.LightningDataModule):
+class FeaturesDataModule(L.LightningDataModule): # TODO: Use this datamodule and remove the unnecessary options from the HypergraphDataModule, which will then only be used for the BVAE, while this one will be used for the DDM inference
 
     def __init__(self,
                  dataset_name: str,
+                 node_feature: str = "eigsh",
+                 hyperedge_feature: str = "eigsh",
                  cache_dir: Path = Path("./cache"),
                  data_dir: Path = Path("./data"),
                  batch_size: int = 32,
@@ -29,6 +31,8 @@ class FeaturesDataModule(L.LightningDataModule):
                  val_size: Union[float, int, None] = None):
         super().__init__()
         self.dataset_name = dataset_name
+        self.node_feature = node_feature
+        self.hyperedge_feature = hyperedge_feature
         self.cache_dir = cache_dir
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -43,12 +47,13 @@ class FeaturesDataModule(L.LightningDataModule):
 
         self.dataset_dir = data_dir / dataset_name
         self.processed_dataset_dir = self.dataset_dir / "processed"
+        self.node_features_dataset_dir = self.dataset_dir / "node_features"
 
     def prepare_data(self):
         # Loading the dataset from HuggingFace Datasets
         # This will be stored in the HuggingFace Datasets cache directory, so it won't be redownloaded every time
         dataset = load_dataset(self.dataset_name,
-                               cache_dir=self.cache_dir / "datasets")
+                               cache_dir=str(self.cache_dir / "datasets"))
 
         # Preprocess the dataset
         # The preprocessing behaviour is described in the `process` function
@@ -57,19 +62,73 @@ class FeaturesDataModule(L.LightningDataModule):
         # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         dataset = dataset.map(process,
                          load_from_cache_file=True,
-                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"])
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
+                         fn_kwargs={
+                             "node_feature": self.node_feature,
+                             "hyperedge_feature": self.hyperedge_feature,
+                         })
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
             dataset.save_to_disk(self.processed_dataset_dir)
 
+        
+        dataset = DatasetDict({
+            k: Dataset.from_generator(transform(v,
+                                            samples_per_hyperedge=self.samples_per_hyperedge,
+                                            walk_length=self.walk_length,
+                                            p=self.p,
+                                            q=self.q,
+                                            alpha=self.alpha,
+                                            num_workers=self.num_workers),
+                                        cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
+            for k, v in dataset.items()
+        })
+
+        if not self.node_features_dataset_dir.exists():
+            dataset.save_to_disk(self.node_features_dataset_dir)
+    
+    def setup(self, stage):
+        self.dataset = load_from_disk(self.node_features_dataset_dir)
+    
+    def train_dataloader(self):
+        dataset = self.dataset
+        return torch.utils.data.DataLoader(dataset[self.train_split],
+                                           batch_size=self.batch_size,
+                                           pin_memory=self.pin_memory,
+                                           num_workers=self.num_workers,
+                                           persistent_workers=self.persistent_workers,
+                                           shuffle=True,
+                                           drop_last=self.drop_last)
+
+    def val_dataloader(self):
+        dataset = self.dataset
+        return torch.utils.data.DataLoader(dataset[self.val_split],
+                                           batch_size=self.batch_size,
+                                           pin_memory=self.pin_memory,
+                                           num_workers=self.num_workers,
+                                           persistent_workers=self.persistent_workers,
+                                           shuffle=False,
+                                           drop_last=self.drop_last)
+
+    def predict_dataloader(self):
+        dataset = self.dataset
+        return torch.utils.data.DataLoader(dataset[self.predict_split],
+                                           batch_size=self.batch_size,
+                                           pin_memory=self.pin_memory,
+                                           num_workers=self.num_workers,
+                                           persistent_workers=self.persistent_workers,
+                                           shuffle=False)
+
 # TODO: Split this datamodule in two different datamodules, one for the BVAE and one for the DDM inference ^^^
 class HypergraphDataModule(L.LightningDataModule):
 
-    def __init__(self,
+    def __init__(self, # TODO: Pass the config objects, not all the options separately
                  # HuggingFaceDatasetsConfig options
                  dataset_name: str,
                  cache_dir: Path = Path("./cache"),
+                 node_feature: str = "eigsh",
+                 hyperedge_feature: str = "eigsh",
                  # DataModuleConfig options
                  data_dir: Path = Path("./data"),
                  only_node_features: bool = False,
@@ -105,6 +164,8 @@ class HypergraphDataModule(L.LightningDataModule):
         # HuggingFaceDatasetsConfig options
         self.dataset_name = dataset_name
         self.cache_dir = cache_dir
+        self.node_feature = node_feature
+        self.hyperedge_feature = hyperedge_feature
         # Dataset split
         self.train_split = train_split
         self.val_split = val_split
@@ -125,7 +186,7 @@ class HypergraphDataModule(L.LightningDataModule):
         # Loading the dataset from HuggingFace Datasets
         # This will be stored in the HuggingFace Datasets cache directory, so it won't be redownloaded every time
         dataset = load_dataset(self.dataset_name,
-                               cache_dir=self.cache_dir / "datasets")
+                               cache_dir=str(self.cache_dir / "datasets"))
 
         # Preprocess the dataset
         # The preprocessing behaviour is described in the `process` function
@@ -134,7 +195,11 @@ class HypergraphDataModule(L.LightningDataModule):
         # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         dataset = dataset.map(process,
                          load_from_cache_file=True,
-                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"])
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
+                         fn_kwargs={
+                            "node_feature": self.node_feature,
+                            "hyperedge_feature": self.hyperedge_feature,
+                         })
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
@@ -158,6 +223,7 @@ class HypergraphDataModule(L.LightningDataModule):
             dataset = dataset.map(lambda x: x,
                                 remove_columns=["hyperedge_features", "hif_dict"])
 
+        # TODO: Adjust train, validation split logic
         # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
         if self.train_split == self.val_split:
             if len(dataset[self.train_split]) > 1 and self.val_size > 0:
@@ -169,7 +235,7 @@ class HypergraphDataModule(L.LightningDataModule):
                 })
             # Rename the splits to train and val
             dataset = DatasetDict({
-                "train": temp_["train"],
+                "train": dataset[self.train_split],
                 "val": temp_["test"],
                 "predict": dataset[self.predict_split],
             })

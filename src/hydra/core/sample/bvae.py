@@ -26,21 +26,23 @@ def sample_bvae(
     )
 
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
-                        data_dir=datamodule_config.data_dir,
-                        cache_dir=huggingface_datasets_config.cache_dir,
-                        p=random_walk_config.p,
-                        q=random_walk_config.q,
-                        alpha=random_walk_config.alpha,
-                        walk_length=random_walk_config.walk_length,
-                        train_split=datamodule_config.train_split,
-                        val_split=datamodule_config.val_split,
-                        predict_split=datamodule_config.predict_split,
-                        samples_per_hyperedge=random_walk_config.samples_per_hyperedge,
-                        pin_memory=dataloader_config.pin_memory,
-                        num_workers=dataloader_config.num_workers,
-                        persistent_workers=dataloader_config.persistent_workers,
-                        batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-                        val_size=datamodule_config.val_size,)
+                                      node_feature=huggingface_datasets_config.node_feature,
+                                      hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
+                                    data_dir=datamodule_config.data_dir,
+                                    cache_dir=huggingface_datasets_config.cache_dir,
+                                    p=random_walk_config.p,
+                                    q=random_walk_config.q,
+                                    alpha=random_walk_config.alpha,
+                                    walk_length=random_walk_config.walk_length,
+                                    train_split=datamodule_config.train_split,
+                                    val_split=datamodule_config.val_split,
+                                    predict_split=datamodule_config.predict_split,
+                                    samples_per_hyperedge=random_walk_config.samples_per_hyperedge,
+                                    pin_memory=dataloader_config.pin_memory,
+                                    num_workers=dataloader_config.num_workers,
+                                    persistent_workers=dataloader_config.persistent_workers,
+                                    batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
+                                    val_size=datamodule_config.val_size,)
 
     predictions = trainer.predict(
         model,
@@ -59,7 +61,14 @@ def sample_bvae(
                     continue
                 nodes = tuple(sorted(nodes))
                 hyperedges.add(nodes)
+    hyperedges = list(hyperedges)
     dist = [0] * 143
     for he in hyperedges:
         dist[len(he)] += 1
     print(dist)
+
+    import xgi
+    H = xgi.Hypergraph(hyperedges)
+    for cc in xgi.connected_components(H):
+        subH = xgi.subhypergraph(H, cc)
+        print(subH)

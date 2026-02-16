@@ -247,7 +247,7 @@ class HGAT(nn.Module):
                  num_layers: int,
                  heads: int = 4):
         super(HGAT, self).__init__()
-        self.input_norm = nn.LayerNorm(in_channels, elementwise_affine=False)
+        self.input_norm = nn.LayerNorm(in_channels, elementwise_affine=True)
         self.input_proj = nn.Linear(in_channels, hidden_channels)
         self.layers = nn.ModuleList([
             nn.ModuleDict({
@@ -257,12 +257,12 @@ class HGAT(nn.Module):
                                                   mode='attn',
                                                   heads=heads,
                                                   symmetric_norm=True),
-                'norm': nn.LayerNorm(hidden_channels, elementwise_affine=False),
+                'norm': nn.LayerNorm(hidden_channels, elementwise_affine=True),
                 'activation': nn.LeakyReLU(),
                 'skip_proj': nn.Linear(hidden_channels, hidden_channels)
             }) for _ in range(num_layers)
         ])
-        self.output_norm = nn.LayerNorm(hidden_channels, elementwise_affine=False)
+        self.output_norm = nn.LayerNorm(hidden_channels, elementwise_affine=True)
         self.output_proj = nn.Linear(hidden_channels, out_channels)
 
     def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:
@@ -278,50 +278,6 @@ class HGAT(nn.Module):
         x = self.output_proj(x)
         return x
 
-class TransformerBlock(nn.Module):
-
-    def __init__(self,
-                 num_channels: int,
-                 num_heads: int):
-        super(TransformerBlock, self).__init__()
-        # Transfomer block with cross-attention
-        self.norm_1 = nn.LayerNorm(num_channels, elementwise_affine=False)
-        self.mha = nn.MultiheadAttention(num_channels, num_heads=num_heads, bias=True, add_bias_kv=True, batch_first=True)
-        self.norm_2 = nn.LayerNorm(num_channels, elementwise_affine=False)
-        self.mlp = MLP(num_channels, num_channels * 4, dropout=0.0)
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        x = x + self.mha(
-            self.norm_1(x), y, y
-        )[0]
-        x = x + self.mlp(self.norm_2(x))
-        return x
-
-class Adapter(nn.Module):
-
-    def __init__(self,
-                 in_channels: int,
-                 hidden_channels: int,
-                 num_heads: int,
-                 num_blocks: int = 1):
-        super(Adapter, self).__init__()
-        self.x_in_proj = nn.Linear(in_channels, hidden_channels)
-        self.y_in_proj = nn.Linear(in_channels, hidden_channels)
-        self.blocks = nn.ModuleList([
-            TransformerBlock(hidden_channels, num_heads) for _ in range(num_blocks)
-        ])
-        self.out_norm = nn.LayerNorm(hidden_channels, elementwise_affine=False)
-        self.out_proj = nn.Linear(hidden_channels, in_channels)
-
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        x = self.x_in_proj(x)
-        y = self.y_in_proj(y)
-        for block in self.blocks:
-            x = block(x, y)
-        x = self.out_norm(x)
-        x = self.out_proj(x)
-        return x
-
 class HypergraphDecoder(nn.Module):
 
     def __init__(self,
@@ -329,7 +285,7 @@ class HypergraphDecoder(nn.Module):
                  num_classes: int = 2):
         super(HypergraphDecoder, self).__init__()
         self.final = nn.Sequential(
-            nn.LayerNorm(in_channels, elementwise_affine=False),
+            # nn.LayerNorm(in_channels, elementwise_affine=False),
             nn.Linear(in_channels, num_classes)
         )
 
