@@ -285,7 +285,7 @@ class HypergraphDecoder(nn.Module):
                  num_classes: int = 2):
         super(HypergraphDecoder, self).__init__()
         self.final = nn.Sequential(
-            # nn.LayerNorm(in_channels, elementwise_affine=False),
+            nn.LayerNorm(in_channels, elementwise_affine=False),
             nn.Linear(in_channels, num_classes)
         )
 

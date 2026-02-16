@@ -62,13 +62,13 @@ def sample_bvae(
                 nodes = tuple(sorted(nodes))
                 hyperedges.add(nodes)
     hyperedges = list(hyperedges)
-    dist = [0] * 143
+    dist = [0] * 1000
     for he in hyperedges:
         dist[len(he)] += 1
     print(dist)
 
-    import xgi
-    H = xgi.Hypergraph(hyperedges)
-    for cc in xgi.connected_components(H):
-        subH = xgi.subhypergraph(H, cc)
-        print(subH)
+    # import xgi
+    # H = xgi.Hypergraph(hyperedges)
+    # for cc in xgi.connected_components(H):
+    #     subH = xgi.subhypergraph(H, cc)
+    #     print(subH)
