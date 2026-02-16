@@ -21,7 +21,9 @@ def train_callback(
     samples_per_hyperedge: Annotated[int, typer.Option("--samples-per-hyperedge", help="Number of random walks to sample per hyperedge.")] = 1,
     # TrainerConfig options
     max_epochs: Annotated[int, typer.Option("--max-epochs", help="Maximum number of training epochs.")] = -1,
+    min_epochs: Annotated[int | None, typer.Option("--min-epochs", help="Minimum number of training epochs.")] = None,
     accumulate_grad_batches: Annotated[int, typer.Option("--accumulate-grad-batches", help="Number of batches to accumulate gradients over.")] = 1,
+    log_every_n_steps: Annotated[int, typer.Option("--log-every-n-steps", help="How often to log training metrics (in steps).")] = 10,
     # ModelSizeConfig options
     model_size: Annotated[ModelSize, typer.Option("--model-size", help="Size of the model to use.")] = ModelSize.M,
     # OptimizerConfig options
@@ -40,7 +42,9 @@ def train_callback(
                                                     walk_length=walk_length,
                                                     samples_per_hyperedge=samples_per_hyperedge)
     ctx.obj["trainer_config"] = TrainerConfig(max_epochs=max_epochs,
-                                              accumulate_grad_batches=accumulate_grad_batches)
+                                              min_epochs=min_epochs,
+                                              accumulate_grad_batches=accumulate_grad_batches,
+                                              log_every_n_steps=log_every_n_steps)
     ctx.obj["model_size_config"] = model_size.value
     ctx.obj["optimizer_config"] = OptimizerConfig(learning_rate=learning_rate,
                                                   weight_decay=weight_decay)

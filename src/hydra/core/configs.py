@@ -22,6 +22,8 @@ class DataModuleConfig:
 class HuggingFaceDatasetsConfig:
     dataset_name: str
     cache_dir: Path
+    node_feature: str
+    hyperedge_feature: str
 
 @dataclass
 class DataLoaderConfig:
@@ -35,6 +37,8 @@ class DataLoaderConfig:
 class TrainerConfig:
     max_epochs: int
     accumulate_grad_batches: int
+    log_every_n_steps: int
+    min_epochs: int | None = None
 
 @dataclass(frozen=True, slots=True)
 class ModelSizeConfig:

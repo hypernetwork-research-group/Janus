@@ -31,6 +31,8 @@ def main_callback(
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
     drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
+    node_feature: Annotated[str, typer.Option("--node-feature", help="Node feature to use for training.")] = "eigsh",
+    hyperedge_feature: Annotated[str, typer.Option("--hyperedge-feature", help="Hyperedge feature to use for training.")] = "eigsh",
     # DataModuleConfig options
     data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
     train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
@@ -47,7 +49,9 @@ def main_callback(
 
     ctx.ensure_object(dict)
     huggingface_datasets_config = HuggingFaceDatasetsConfig(dataset_name=dataset_name,
-                                                                    cache_dir=cache_dir)
+                                                                    cache_dir=cache_dir,
+                                                                    node_feature=node_feature,
+                                                                    hyperedge_feature=hyperedge_feature)
     ctx.obj['huggingface_datasets_config'] = huggingface_datasets_config
     dataloader_config = DataLoaderConfig(pin_memory=pin_memory,
                                         num_workers=num_workers,

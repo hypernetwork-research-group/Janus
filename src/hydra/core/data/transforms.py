@@ -5,7 +5,7 @@ from tqdm.auto import tqdm
 
 from .utils import metropolis_hastings_biased_random_walk, patch_nodes
 
-def process(batch):
+def process(batch, node_feature: str, hyperedge_feature: str):
     hif_dict = batch
     hypergraph = xgi.convert.from_hif_dict(hif_dict, nodetype=int)
     # if retain_lcc:
@@ -16,10 +16,10 @@ def process(batch):
 
     X = []
     for node in sorted(hypergraph.nodes):
-        X.append(hypergraph.nodes[node]['eigsh'])
+        X.append(hypergraph.nodes[node][node_feature]) # TODO: Add feature attribute name as a parameter
     Y = []
     for edge in sorted(hypergraph.edges):
-        Y.append(hypergraph.edges[edge]['eigsh'])
+        Y.append(hypergraph.edges[edge][hyperedge_feature])
 
     return {
         "hif_dict": hif_dict,
