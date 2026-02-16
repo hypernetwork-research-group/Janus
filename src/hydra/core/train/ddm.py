@@ -20,6 +20,8 @@ def train_ddm(
     bvae_ckpt: Path | str,
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
+                                      node_feature=huggingface_datasets_config.node_feature,
+                                      hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
                         data_dir=datamodule_config.data_dir,
                         cache_dir=huggingface_datasets_config.cache_dir,
                         p=random_walk_config.p,
@@ -49,8 +51,9 @@ def train_ddm(
     trainer = L.Trainer(
         default_root_dir=default_root_dir,
         max_epochs=trainer_config.max_epochs,
+        min_epochs=trainer_config.min_epochs,
         accumulate_grad_batches=trainer_config.accumulate_grad_batches,
-        log_every_n_steps=10, # TODO: Add this to trainer configuration
+        log_every_n_steps=trainer_config.log_every_n_steps,
         check_val_every_n_epoch=1,
         enable_checkpointing=False,
         logger=TensorBoardLogger(

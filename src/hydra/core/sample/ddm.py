@@ -6,7 +6,7 @@ import torch
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
-from hydra.core.data.datamodules import HypergraphDataModule
+from hydra.core.data.datamodules import HypergraphDataModule, FeaturesDataModule
 
 # TODO: Implement this
 
@@ -26,7 +26,24 @@ def sample_ddm(
         enable_checkpointing=False,
     )
 
+    datamodule = FeaturesDataModule( # TODO: Use this
+        dataset_name=huggingface_datasets_config.dataset_name,
+        node_feature=huggingface_datasets_config.node_feature,
+        hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
+        data_dir=datamodule_config.data_dir,
+        cache_dir=huggingface_datasets_config.cache_dir,
+        train_split=datamodule_config.train_split,
+        val_split=datamodule_config.val_split,
+        predict_split=datamodule_config.predict_split,
+        pin_memory=dataloader_config.pin_memory,
+        num_workers=dataloader_config.num_workers,
+        persistent_workers=dataloader_config.persistent_workers,
+        batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
+    )
+
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
+                                      node_feature=huggingface_datasets_config.node_feature,
+                                      hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
                         data_dir=datamodule_config.data_dir,
                         cache_dir=huggingface_datasets_config.cache_dir,
                         train_split=datamodule_config.train_split,
