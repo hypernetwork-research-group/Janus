@@ -71,7 +71,6 @@ class FeaturesDataModule(L.LightningDataModule): # TODO: Use this datamodule and
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
             dataset.save_to_disk(self.processed_dataset_dir)
-
         
         dataset = DatasetDict({
             k: Dataset.from_generator(transform(v,
@@ -131,7 +130,6 @@ class HypergraphDataModule(L.LightningDataModule):
                  hyperedge_feature: str = "eigsh",
                  # DataModuleConfig options
                  data_dir: Path = Path("./data"),
-                 only_node_features: bool = False,
                  p: float = 2.0,
                  q: float = 0.5,
                  alpha: float = 0.0,
@@ -155,7 +153,6 @@ class HypergraphDataModule(L.LightningDataModule):
         self.alpha = alpha
         self.walk_length = walk_length
         self.samples_per_hyperedge = samples_per_hyperedge
-        self.only_node_features = only_node_features
         # DataLoaderConfig options
         self.pin_memory = pin_memory
         self.num_workers = num_workers or cpu_count()
@@ -178,9 +175,8 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # Additional
         self.dataset_dir = data_dir / dataset_name
-        self.processed_dataset_dir = self.dataset_dir / "processed"
-        self.node_features_dataset_dir = self.dataset_dir / "node_features"
-        self.transformed_dataset_dir = self.dataset_dir / f"sph{samples_per_hyperedge}" / f"wl{walk_length}" / f"p{p}" / f"q{q}" / f"a{alpha}" / f"{self.val_size if train_split == val_split else 'fullvalsize'}"
+        self.processed_dataset_dir = self.dataset_dir / "processed" / f"n{node_feature}_h{hyperedge_feature}"
+        self.transformed_dataset_dir = self.dataset_dir / "transformed" / f"sph{samples_per_hyperedge}" / f"wl{walk_length}" / f"p{p}" / f"q{q}" / f"a{alpha}" / f"{self.val_size if train_split == val_split else 'fullvalsize'}" / f"n{node_feature}_h{hyperedge_feature}"
 
     def prepare_data(self):
         # Loading the dataset from HuggingFace Datasets
@@ -205,23 +201,19 @@ class HypergraphDataModule(L.LightningDataModule):
         if not self.processed_dataset_dir.exists():
             dataset.save_to_disk(self.processed_dataset_dir)
 
-        if not self.only_node_features:
-            # Here, we build a set of random walks for each hypergraph,
-            # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
-            dataset = DatasetDict({
-                k: Dataset.from_generator(transform(v,
-                                                samples_per_hyperedge=self.samples_per_hyperedge,
-                                                walk_length=self.walk_length,
-                                                p=self.p,
-                                                q=self.q,
-                                                alpha=self.alpha,
-                                                num_workers=self.num_workers),
-                                            cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
-                for k, v in dataset.items()
-            })
-        else:
-            dataset = dataset.map(lambda x: x,
-                                remove_columns=["hyperedge_features", "hif_dict"])
+        # Here, we build a set of random walks for each hypergraph,
+        # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
+        dataset = DatasetDict({
+            k: Dataset.from_generator(transform(v,
+                                            samples_per_hyperedge=self.samples_per_hyperedge,
+                                            walk_length=self.walk_length,
+                                            p=self.p,
+                                            q=self.q,
+                                            alpha=self.alpha,
+                                            num_workers=self.num_workers),
+                                        cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
+            for k, v in dataset.items()
+        })
 
         # TODO: Adjust train, validation split logic
         # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
@@ -249,32 +241,16 @@ class HypergraphDataModule(L.LightningDataModule):
         # Set the format to PyTorch tensors, this will allow us to directly get PyTorch tensors when we access the elements of the dataset
         dataset.set_format(type='torch')
 
-        if self.only_node_features:
-            if not self.node_features_dataset_dir.exists():
-                dataset.save_to_disk(self.node_features_dataset_dir)
-        else:
-            # Similarly to the processed dataset, we save the transformed dataset to disk
-            if not self.transformed_dataset_dir.exists():
-                dataset.save_to_disk(self.transformed_dataset_dir)
+        # Similarly to the processed dataset, we save the transformed dataset to disk
+        if not self.transformed_dataset_dir.exists():
+            dataset.save_to_disk(self.transformed_dataset_dir)
 
     def setup(self, stage):
         # Drop edge_features_column
-        if self.only_node_features:
-            self.dataset = load_from_disk(self.node_features_dataset_dir)
-        else:
-            self.dataset = load_from_disk(self.transformed_dataset_dir)
+        self.dataset = load_from_disk(self.transformed_dataset_dir)
 
     def train_dataloader(self):
-        if self.only_node_features:
-            dataset = DatasetDict({
-                k: torch.utils.data.TensorDataset(
-                    v["node_features"][:].expand(self.batch_size or 1, -1, -1),
-                    torch.randn(self.batch_size or 1, self.walk_length, v["node_features"][:].shape[-1])
-                )
-                for k, v in self.dataset.items()
-            })
-        else:
-            dataset = self.dataset
+        dataset = self.dataset
         return torch.utils.data.DataLoader(dataset["train"],
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
@@ -284,16 +260,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                            drop_last=self.drop_last)
 
     def val_dataloader(self):
-        if self.only_node_features:
-            dataset = DatasetDict({
-                k: torch.utils.data.TensorDataset(
-                    v["node_features"][:].expand(self.batch_size or 1, -1, -1),
-                    torch.randn(self.batch_size or 1, self.walk_length, v["node_features"][:].shape[-1])
-                )
-                for k, v in self.dataset.items()
-            })
-        else:
-            dataset = self.dataset
+        dataset = self.dataset
         return torch.utils.data.DataLoader(dataset["val"],
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
@@ -303,16 +270,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                            drop_last=self.drop_last)
 
     def predict_dataloader(self):
-        if self.only_node_features:
-            dataset = DatasetDict({
-                k: torch.utils.data.TensorDataset(
-                    v["node_features"][:].expand(self.batch_size or 1, -1, -1),
-                    torch.randn(self.batch_size or 1, self.walk_length, v["node_features"][:].shape[-1])
-                )
-                for k, v in self.dataset.items()
-            })
-        else:
-            dataset = self.dataset
+        dataset = self.dataset
         return torch.utils.data.DataLoader(dataset["predict"],
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,

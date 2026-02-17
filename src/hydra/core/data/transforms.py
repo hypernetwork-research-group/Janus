@@ -16,7 +16,7 @@ def process(batch, node_feature: str, hyperedge_feature: str):
 
     X = []
     for node in sorted(hypergraph.nodes):
-        X.append(hypergraph.nodes[node][node_feature]) # TODO: Add feature attribute name as a parameter
+        X.append(hypergraph.nodes[node][node_feature])
     Y = []
     for edge in sorted(hypergraph.edges):
         Y.append(hypergraph.edges[edge][hyperedge_feature])

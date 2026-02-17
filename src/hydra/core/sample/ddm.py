@@ -41,22 +41,6 @@ def sample_ddm(
         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
     )
 
-    datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
-                                      node_feature=huggingface_datasets_config.node_feature,
-                                      hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
-                        data_dir=datamodule_config.data_dir,
-                        cache_dir=huggingface_datasets_config.cache_dir,
-                        train_split=datamodule_config.train_split,
-                        val_split=datamodule_config.val_split,
-                        predict_split=datamodule_config.predict_split,
-                        pin_memory=dataloader_config.pin_memory,
-                        num_workers=dataloader_config.num_workers,
-                        persistent_workers=dataloader_config.persistent_workers,
-                        batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-                        val_size=datamodule_config.val_size,
-                        walk_length=walk_length,
-                        only_node_features=True)
-
     hyperedges = set()
 
     while len(hyperedges) < 1512:
