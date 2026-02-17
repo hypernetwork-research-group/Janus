@@ -12,7 +12,7 @@ from .transforms import add_random_noise, transform, process
 
 logger = logging.getLogger(__name__)
 
-class FeaturesDataModule(L.LightningDataModule): # TODO: Use this datamodule and remove the unnecessary options from the HypergraphDataModule, which will then only be used for the BVAE, while this one will be used for the DDM inference
+class FeaturesDataModule(L.LightningDataModule):
 
     def __init__(self,
                  dataset_name: str,
@@ -119,7 +119,6 @@ class FeaturesDataModule(L.LightningDataModule): # TODO: Use this datamodule and
                                            persistent_workers=self.persistent_workers,
                                            shuffle=False)
 
-# TODO: Split this datamodule in two different datamodules, one for the BVAE and one for the DDM inference ^^^
 class HypergraphDataModule(L.LightningDataModule):
 
     def __init__(self, # TODO: Pass the config objects, not all the options separately

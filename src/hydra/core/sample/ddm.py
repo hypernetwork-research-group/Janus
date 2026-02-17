@@ -26,7 +26,7 @@ def sample_ddm(
         enable_checkpointing=False,
     )
 
-    datamodule = FeaturesDataModule( # TODO: Use this
+    datamodule = FeaturesDataModule(
         dataset_name=huggingface_datasets_config.dataset_name,
         node_feature=huggingface_datasets_config.node_feature,
         hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
