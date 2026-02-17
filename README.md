@@ -135,6 +135,13 @@ hydra --batch-size 32 --val-size 0 [DATASET] train --model-size S --samples-per-
 hydra --batch-size 32 [DATASET] sample --ckpt logs/[DATASET]/logs/version_0/DDM-HyDRA-S/checkpoints/last.ckpt ddm
 ```
 
+<iframe
+  src="https://huggingface.co/datasets/daqh/email-Enron/embed/viewer/default/full"
+  frameborder="0"
+  width="100%"
+  height="560px"
+></iframe>
+
 ## Datasets
 
 <table>
