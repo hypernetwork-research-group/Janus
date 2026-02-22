@@ -4,6 +4,7 @@ import lightning as L
 from lightning.pytorch.callbacks.prediction_writer import WriteInterval
 import torch
 from tqdm.rich import tqdm
+import xgi
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig, RandomWalkConfig
 from hydra.core.models.modules import HypergraphBetaVAE
@@ -15,7 +16,7 @@ def sample_bvae(
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
     dataloader_config: DataLoaderConfig,
     ckpt_path: Path,
-):
+) -> xgi.Hypergraph:
 
     model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
 
@@ -62,13 +63,7 @@ def sample_bvae(
                 nodes = tuple(sorted(nodes))
                 hyperedges.add(nodes)
     hyperedges = list(hyperedges)
-    dist = [0] * 1000
-    for he in hyperedges:
-        dist[len(he)] += 1
-    print(dist)
 
-    # import xgi
-    # H = xgi.Hypergraph(hyperedges)
-    # for cc in xgi.connected_components(H):
-    #     subH = xgi.subhypergraph(H, cc)
-    #     print(subH)
+    hypergraph = xgi.Hypergraph(hyperedges)
+    
+    return hypergraph

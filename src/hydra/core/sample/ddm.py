@@ -3,10 +3,11 @@ from pathlib import Path
 import lightning as L
 from tqdm.rich import tqdm
 import torch
+import xgi
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
-from hydra.core.data.datamodules import HypergraphDataModule, FeaturesDataModule
+from hydra.core.data.datamodules import FeaturesDataModule
 
 # TODO: Implement this
 
@@ -16,7 +17,7 @@ def sample_ddm(
     dataloader_config: DataLoaderConfig,
     walk_length: int,
     ckpt_path: Path,
-):
+) -> xgi.Hypergraph:
 
     model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
 
@@ -66,3 +67,7 @@ def sample_ddm(
         for he in hyperedges:
             dist[len(he)] += 1
         print(dist)
+    
+    hypergraph = xgi.Hypergraph(hyperedges)
+
+    return hypergraph
