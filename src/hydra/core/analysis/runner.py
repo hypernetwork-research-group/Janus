@@ -29,3 +29,7 @@ def analyze_hypergraph(hg: HypergraphLazyParser,
 
     reference_hypergraphs = HypergraphLazyParser(xgi.from_hif_dict(dataset[0], nodetype=int, edgetype=int))
 
+    metric_keys = include_metrics or list_metrics()
+
+    for metric_key in metric_keys:
+        print(metric_key)
