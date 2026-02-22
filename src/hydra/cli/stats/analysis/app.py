@@ -1,10 +1,11 @@
 from pathlib import Path
 from typing import Annotated
+import json
 
 import typer
 
-from hydra.core.analysis.utils import hif_discovery
-from hydra.core.analysis.comparative import comparative_analysis
+from hydra.core.analysis.utils import hif_discovery, results_discovery
+from hydra.core.analysis.quantitative import quantitative_analysis
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 
@@ -12,14 +13,28 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 def analyze(
     ctx: typer.Context,
     root_dir: Annotated[Path, typer.Option("--root-dir", help="Path to the checkpoint to sample from.")] = Path("samples"),
-    include_metrics: Annotated[list[str] | None, typer.Option("--include-metrics", help="List of metrics to include in the analysis.")] = None,
-    split: Annotated[str, typer.Option("--split", help="Split of the dataset to use.")] = "full",
-    data_dir: Annotated[Path, typer.Option("--data-dir", help="Path to the data directory.")] = Path("data"),
-    cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Path to the cache directory.")] = Path("cache")
+    include_metrics: Annotated[list[str], typer.Option("--include-metrics", "-m", help="List of metrics to include in the analysis.")] = [],
+    exclude_metrics: Annotated[list[str], typer.Option("--exclude-metrics", "-e", help="List of metrics to exclude from the analysis.")] = [],
 ):
     for hypergraph in hif_discovery(root_dir):
-        results = comparative_analysis(hypergraph,
+        path = Path(hypergraph.xgi_hypergraph['path'])
+        results_path = path.with_suffix(".results.json")
+        results = dict()
+        if results_path.exists():
+            with open(results_path, "r") as f:
+                results = json.load(f)
+        exclude_metrics = list(results.keys()) + exclude_metrics
+        results.update(quantitative_analysis(hypergraph,
                                      include_metrics=include_metrics,
-                                     split=split,
-                                     data_dir=data_dir,
-                                     cache_dir=cache_dir)
+                                     exclude_metrics=exclude_metrics))
+        with open(results_path, "w") as f:
+            json.dump(results, f, indent=2)
+
+@app.command()
+def clear(
+    ctx: typer.Context,
+    root_dir: Annotated[Path, typer.Option("--root-dir", help="Path to the checkpoint to sample from.")] = Path("samples"),
+):
+    for results in results_discovery(root_dir):
+        path = Path(results['path'])
+        path.unlink()

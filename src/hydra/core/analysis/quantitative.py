@@ -1,0 +1,24 @@
+# This will analyze a hypergraph and compute a set of metrics on it
+from pathlib import Path
+
+from datasets import load_dataset, load_from_disk
+import xgi
+
+from .utils import HypergraphLazyParser
+from .metrics.registry import list_metrics, get_metric
+
+def quantitative_analysis(hg: HypergraphLazyParser,
+                 include_metrics: list[str] | None = None,
+                 exclude_metrics: list[str] | None = None) -> dict[str, float | int | list | dict]:
+
+    metric_keys = include_metrics or list_metrics()
+
+    results = dict()
+    for metric_key in metric_keys:
+        if metric_key in exclude_metrics:
+            continue
+        _Metric = get_metric(metric_key)
+        metric = _Metric()
+        metric_value = metric.compute(hg)
+        results[metric_key] = metric_value
+    return results

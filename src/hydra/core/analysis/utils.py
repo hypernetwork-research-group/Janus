@@ -2,6 +2,7 @@ from functools import cache
 from pathlib import Path
 from os import listdir
 from os.path import isdir
+import json
 
 import xgi
 import hypernetx as hnx
@@ -49,3 +50,10 @@ def hif_discovery(path: Path | str):
         hypergraph = xgi.read_hif(path, nodetype=int, edgetype=int)
         hypergraph['path'] = str(path)
         yield HypergraphLazyParser(hypergraph)
+
+def results_discovery(path: Path | str):
+    for path in file_discovery(path, [".hif.results.json"]):
+        with open(path) as f:
+            results = json.load(f)
+            results['path'] = str(path)
+        yield results
