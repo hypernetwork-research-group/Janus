@@ -109,13 +109,13 @@ The learning rate is determined using a learning rate finder strategy.
 ## Analysis
 
 ```bash
-hydra [DATASET] analysis --sample [SAMPLE] <OPTIONS>
+hydra-stats analysis <OPTIONS>
 ```
 
 ## Report
 
 ```bash
-hydra [DATASET] report
+hydra-stats report <OPTIONS>
 ```
 
 ## Reproducibility
