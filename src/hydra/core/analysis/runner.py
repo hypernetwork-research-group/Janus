@@ -22,6 +22,10 @@ def analyze_hypergraph(hg: HypergraphLazyParser,
         dataset.save_to_disk(local_dataset_dir)
     else:
         dataset = load_from_disk(local_dataset_dir)
+    
+    if len(dataset) > 1:
+        # TODO: Not supported yet
+        raise NotImplementedError("Multiple datasets are not supported yet.")
 
-    reference_hypergraphs = [HypergraphLazyParser(xgi.from_hif_dict(d, nodetype=int, edgetype=int)) for d in dataset]
+    reference_hypergraphs = HypergraphLazyParser(xgi.from_hif_dict(dataset[0], nodetype=int, edgetype=int))
 
