@@ -124,11 +124,11 @@ class HypergraphDataModule(L.LightningDataModule):
     def __init__(self, # TODO: Pass the config objects, not all the options separately
                  # HuggingFaceDatasetsConfig options
                  dataset_name: str,
-                 cache_dir: Path = Path("./cache"),
+                 cache_dir: Path = Path("cache"),
                  node_feature: str = "eigsh",
                  hyperedge_feature: str = "eigsh",
                  # DataModuleConfig options
-                 data_dir: Path = Path("./data"),
+                 data_dir: Path = Path("data"),
                  p: float = 2.0,
                  q: float = 0.5,
                  alpha: float = 0.0,
