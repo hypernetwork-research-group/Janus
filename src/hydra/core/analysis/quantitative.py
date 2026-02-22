@@ -1,9 +1,3 @@
-# This will analyze a hypergraph and compute a set of metrics on it
-from pathlib import Path
-
-from datasets import load_dataset, load_from_disk
-import xgi
-
 from .utils import HypergraphLazyParser
 from .metrics.registry import list_metrics, get_metric
 
