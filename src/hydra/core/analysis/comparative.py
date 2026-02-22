@@ -6,7 +6,7 @@ import xgi
 from .utils import HypergraphLazyParser
 from .metrics.registry import list_metrics, get_metric
 
-def analyze_hypergraph(hg: HypergraphLazyParser,
+def comparative_analysis(hg: HypergraphLazyParser,
                  include_metrics: list[str] | None = None,
                  split: str = "full",
                  data_dir: Path = Path("data"),
@@ -22,7 +22,7 @@ def analyze_hypergraph(hg: HypergraphLazyParser,
         dataset.save_to_disk(local_dataset_dir)
     else:
         dataset = load_from_disk(local_dataset_dir)
-    
+
     if len(dataset) > 1:
         # TODO: Not supported yet
         raise NotImplementedError("Multiple datasets are not supported yet.")
@@ -32,4 +32,6 @@ def analyze_hypergraph(hg: HypergraphLazyParser,
     metric_keys = include_metrics or list_metrics()
 
     for metric_key in metric_keys:
-        print(metric_key)
+        _Metric = get_metric(metric_key)
+        metric = _Metric()
+        metric_value = metric.compute(hg)

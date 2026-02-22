@@ -4,11 +4,9 @@ from typing import Annotated
 import typer
 
 from hydra.core.analysis.utils import hif_discovery
-from hydra.core.analysis.runner import analyze_hypergraph
+from hydra.core.analysis.comparative import comparative_analysis
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
-
-import xgi
 
 @app.command()
 def analyze(
@@ -20,7 +18,7 @@ def analyze(
     cache_dir: Annotated[Path, typer.Option("--cache-dir", help="Path to the cache directory.")] = Path("cache")
 ):
     for hypergraph in hif_discovery(root_dir):
-        results = analyze_hypergraph(hypergraph,
+        results = comparative_analysis(hypergraph,
                                      include_metrics=include_metrics,
                                      split=split,
                                      data_dir=data_dir,
