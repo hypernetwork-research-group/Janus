@@ -65,5 +65,6 @@ def sample_bvae(
     hyperedges = list(hyperedges)
 
     hypergraph = xgi.Hypergraph(hyperedges)
-    
+    hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+
     return hypergraph
