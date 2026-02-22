@@ -7,8 +7,6 @@ import rich.logging
 
 from .train.app import app as train_app
 from .sample.app import app as sample_app
-from .analyze.app import app as analyze_app
-from .report.app import app as report_app
 from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
 
 logger = logging.getLogger(__name__)
@@ -16,8 +14,6 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 app.add_typer(train_app, name="train")
 app.add_typer(sample_app, name="sample")
-app.add_typer(analyze_app)
-app.add_typer(report_app)
 
 @app.callback()
 def main_callback(
@@ -38,7 +34,7 @@ def main_callback(
     train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
     val_split: Annotated[str, typer.Option("--val-split", help="Dataset split(s) to use for validation.")] = "full",
     predict_split: Annotated[str, typer.Option("--predict-split", help="Dataset split(s) to use for prediction.")] = "full",
-    val_size: Annotated[float, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
+    val_size: Annotated[float | None, typer.Option("--val-size", help="Ignored if train_split != val_split. Size of the validation set. If float, represents the proportion of the dataset to include in the validation split. If int, represents the absolute number of examples. If None, the value is set to 0.1.")] = None,
     # Logging options
     log_level: Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Option("--log-level", help="Set the logging level.")] = "WARNING",
 ):
