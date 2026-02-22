@@ -1,3 +1,5 @@
+from tqdm import tqdm
+
 from .utils import HypergraphLazyParser
 from .metrics.registry import list_metrics, get_metric
 
@@ -8,7 +10,7 @@ def quantitative_analysis(hg: HypergraphLazyParser,
     metric_keys = include_metrics or list_metrics()
 
     results = dict()
-    for metric_key in metric_keys:
+    for metric_key in tqdm(metric_keys, desc="Computing metrics", leave=False):
         if metric_key in exclude_metrics:
             continue
         _Metric = get_metric(metric_key)

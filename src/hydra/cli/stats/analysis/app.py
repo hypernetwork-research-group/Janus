@@ -3,6 +3,7 @@ from typing import Annotated
 import json
 
 import typer
+from tqdm import tqdm
 
 from hydra.core.analysis.utils import hif_discovery, results_discovery
 from hydra.core.analysis.quantitative import quantitative_analysis
@@ -16,7 +17,7 @@ def analyze(
     include_metrics: Annotated[list[str], typer.Option("--include-metrics", "-m", help="List of metrics to include in the analysis.")] = [],
     exclude_metrics: Annotated[list[str], typer.Option("--exclude-metrics", "-e", help="List of metrics to exclude from the analysis.")] = [],
 ):
-    for hypergraph in hif_discovery(root_dir):
+    for hypergraph in tqdm(hif_discovery(root_dir)):
         path = Path(hypergraph.xgi_hypergraph['path'])
         results_path = path.with_suffix(".results.json")
         results = dict()
