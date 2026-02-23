@@ -22,7 +22,7 @@ def sample_ddm(
     model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
 
     trainer = L.Trainer(
-        default_root_dir="logs/daqh/email-Enron/BVAE-HyDRA-S/logs/version_0",
+        default_root_dir="logs/daqh/email-Enron/DDM-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
         logger=False,
         enable_checkpointing=False,
     )

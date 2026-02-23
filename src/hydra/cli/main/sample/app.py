@@ -1,11 +1,13 @@
 from typing import Annotated
 from pathlib import Path
+import json
 
 import typer
+import xgi
 
 from hydra.core.sample.bvae import sample_bvae
 from hydra.core.sample.ddm import sample_ddm
-from hydra.core.configs import DataModuleConfig, RandomWalkConfig
+from hydra.core.configs import RandomWalkConfig
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 
@@ -38,11 +40,12 @@ def bvae(
     dataloader_config = ctx.obj['dataloader_config']
     huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
     datamodule_config = ctx.obj['datamodule_config']
-    sample_bvae(random_walk_config,
+    hypergraph = sample_bvae(random_walk_config,
                 datamodule_config,
                 huggingface_datasets_config,
                 dataloader_config,
                 ckpt_path)
+    hif_dict = xgi.to_hif_dict(hypergraph)
 
 @app.command()
 def ddm(ctx: typer.Context,
@@ -52,7 +55,7 @@ def ddm(ctx: typer.Context,
     dataloader_config = ctx.obj['dataloader_config']
     datamodule_config = ctx.obj['datamodule_config']
     ckpt_path = ctx.obj['ckpt_path']
-    sample_ddm(
+    hypergraph = sample_ddm(
         datamodule_config,
         huggingface_datasets_config,
         dataloader_config,

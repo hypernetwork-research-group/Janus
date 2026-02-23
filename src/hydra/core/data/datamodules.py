@@ -68,22 +68,6 @@ class FeaturesDataModule(L.LightningDataModule):
                              "hyperedge_feature": self.hyperedge_feature,
                          })
 
-        # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
-        if not self.processed_dataset_dir.exists():
-            dataset.save_to_disk(self.processed_dataset_dir)
-        
-        dataset = DatasetDict({
-            k: Dataset.from_generator(transform(v,
-                                            samples_per_hyperedge=self.samples_per_hyperedge,
-                                            walk_length=self.walk_length,
-                                            p=self.p,
-                                            q=self.q,
-                                            alpha=self.alpha,
-                                            num_workers=self.num_workers),
-                                        cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
-            for k, v in dataset.items()
-        })
-
         if not self.node_features_dataset_dir.exists():
             dataset.save_to_disk(self.node_features_dataset_dir)
     
