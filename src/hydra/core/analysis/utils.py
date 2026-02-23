@@ -62,5 +62,4 @@ def comparison_discovery(path: Path | str):
     for path in file_discovery(path, [".hif.results.comparison.json"]):
         with open(path) as f:
             comparison_results = json.load(f)
-            comparison_results['path'] = str(path)
         yield path, comparison_results

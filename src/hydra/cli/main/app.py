@@ -2,6 +2,9 @@ from typing import Literal, Annotated, Optional
 import typer
 import logging
 from pathlib import Path
+import resource
+
+import psutil
 
 import rich.logging
 
@@ -14,6 +17,30 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 app.add_typer(train_app, name="train")
 app.add_typer(sample_app, name="sample")
+
+
+def _enforce_memory_limits() -> None:
+    total_memory = psutil.virtual_memory().total
+    target = int(total_memory * 0.9)
+    for rname in ("RLIMIT_AS", "RLIMIT_DATA"):
+        r = getattr(resource, rname, None)
+        if r is None:
+            continue
+        current_soft, current_hard = resource.getrlimit(r)
+        new_hard = target if current_hard == resource.RLIM_INFINITY else min(target, current_hard)
+        new_soft = min(target, new_hard)
+        if current_soft == new_soft and current_hard == new_hard:
+            continue
+        resource.setrlimit(r, (new_soft, new_hard))
+        logger.warning(
+            "Set %s soft limit to %s/%s bytes and hard limit to %s/%s bytes of total memory %s.",
+            rname,
+            new_soft,
+            current_soft,
+            new_hard,
+            current_hard,
+            total_memory,
+        )
 
 @app.callback()
 def main_callback(
@@ -39,6 +66,7 @@ def main_callback(
     log_level: Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], typer.Option("--log-level", help="Set the logging level.")] = "WARNING",
 ):
     """MyCLI: a tiny example Typer app."""
+    _enforce_memory_limits()
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
     root_logger.addHandler(rich.logging.RichHandler())

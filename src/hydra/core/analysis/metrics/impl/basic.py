@@ -177,3 +177,31 @@ class HyperPortraitDivergence(Metric):
         JSD = distance.jensenshannon(P1, P2, base=2)
         hpd = JSD * JSD
         return hpd
+
+from sklearn.metrics import normalized_mutual_info_score
+
+@register_metric()
+class NormalizedMutualInformation(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        hyperedges = hg.xgi_hypergraph.edges.members()
+        xgi_hypergraph = xgi.Hypergraph(hyperedges)
+        xgi.convert_labels_to_integers(xgi_hypergraph, in_place=True)
+        graph = xgi.to_graph(xgi_hypergraph)
+        communities = nx.algorithms.community.louvain_communities(graph)
+        number_of_nodes = graph.number_of_nodes()
+        labels = [0] * number_of_nodes
+        for i, community in enumerate(communities):
+            for node in community:
+                labels[node] = i
+        return {
+            "labels": sorted(labels)
+        }
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        val_a, val_b = a["labels"], b["labels"]
+        max_length = max(len(val_a), len(val_b))
+        val_a = val_a + [-1] * (max_length - len(val_a))
+        val_b = val_b + [-1] * (max_length - len(val_b))
+        nmi = normalized_mutual_info_score(val_a, val_b)
+        return nmi

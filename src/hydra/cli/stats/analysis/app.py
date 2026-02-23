@@ -15,8 +15,9 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 def analyze(
     ctx: typer.Context,
     root_dir: Annotated[Path, typer.Option("--root-dir", help="Path to the checkpoint to sample from.")] = Path("samples"),
-    include_metrics: Annotated[list[str], typer.Option("--include-metrics", "-m", help="List of metrics to include in the analysis.")] = [],
-    exclude_metrics: Annotated[list[str], typer.Option("--exclude-metrics", "-e", help="List of metrics to exclude from the analysis.")] = [],
+    include_metrics: Annotated[list[str], typer.Option("--include-metric", "-m", help="List of metrics to include in the analysis.")] = [],
+    exclude_metrics: Annotated[list[str], typer.Option("--exclude-metric", "-e", help="List of metrics to exclude from the analysis.")] = [],
+    force_metrics: Annotated[list[str], typer.Option("--force-metric", "-f", help="List of metrics to force recompute in the analysis.")] = [],
 ):
     for path, hypergraph in tqdm(hif_discovery(root_dir)):
         results_path = path.with_suffix(".results.json")
@@ -26,7 +27,7 @@ def analyze(
                 results = json.load(f)
         results.update(quantitative_analysis(hypergraph,
                                      include_metrics=include_metrics,
-                                     exclude_metrics=list(results.keys()) + exclude_metrics))
+                                     exclude_metrics=[metric for metric in list(results.keys()) + exclude_metrics if metric not in force_metrics]))
         with open(results_path, "w") as f:
             json.dump(results, f, indent=None, sort_keys=True, separators=(",", ":"))
 
@@ -36,8 +37,9 @@ def compare(
     root_dir: Annotated[Path, typer.Option("--root-dir", help="Path to the checkpoint to sample from.")] = Path("samples"),
     references_dir: Annotated[Path, typer.Option("--references-dir", help="Path to the reference hypergraphs.")] = Path("references"),
     split: Annotated[str, typer.Option("--split", help="Split of the dataset to compare.")] = "full",
-    include_metrics: Annotated[list[str], typer.Option("--include-metrics", "-m", help="List of metrics to include in the analysis.")] = [],
-    exclude_metrics: Annotated[list[str], typer.Option("--exclude-metrics", "-e", help="List of metrics to exclude from the analysis.")] = [],
+    include_metrics: Annotated[list[str], typer.Option("--include-metric", "-m", help="List of metrics to include in the analysis.")] = [],
+    exclude_metrics: Annotated[list[str], typer.Option("--exclude-metric", "-e", help="List of metrics to exclude from the analysis.")] = [],
+    force_metrics: Annotated[list[str], typer.Option("--force-metric", "-f", help="List of metrics to force recompute in the analysis.")] = [],
 ):
     references = dict()
     for path, results in results_discovery(references_dir):
@@ -46,6 +48,7 @@ def compare(
             continue
         references[dataset_name] = results
     for path, results in tqdm(results_discovery(root_dir)):
+        print(path)
         dataset_name = results['dataset_name']
         reference = references[dataset_name]
         comparison_path = path.with_suffix(".comparison.json")
@@ -56,7 +59,7 @@ def compare(
         comparison_results.update(comparative_analysis(results,
                                                        reference,
                                                        include_metrics=include_metrics,
-                                                       exclude_metrics=list(comparison_results.keys()) + exclude_metrics))
+                                                       exclude_metrics=[metric for metric in list(comparison_results.keys()) + exclude_metrics if metric not in force_metrics]))
         with open(comparison_path, "w") as f:
             json.dump(comparison_results, f, indent=None, sort_keys=True, separators=(",", ":"))
 
