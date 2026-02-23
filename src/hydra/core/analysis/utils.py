@@ -49,11 +49,18 @@ def hif_discovery(path: Path | str):
     for path in file_discovery(path, [".hif.json", ".hif.jsonl"]):
         hypergraph = xgi.read_hif(path, nodetype=int, edgetype=int)
         hypergraph['path'] = str(path)
-        yield HypergraphLazyParser(hypergraph)
+        yield path, HypergraphLazyParser(hypergraph)
 
 def results_discovery(path: Path | str):
     for path in file_discovery(path, [".hif.results.json"]):
         with open(path) as f:
             results = json.load(f)
             results['path'] = str(path)
-        yield results
+        yield path, results
+
+def comparison_discovery(path: Path | str):
+    for path in file_discovery(path, [".hif.results.comparison.json"]):
+        with open(path) as f:
+            comparison_results = json.load(f)
+            comparison_results['path'] = str(path)
+        yield path, comparison_results

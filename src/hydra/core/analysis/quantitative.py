@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from tqdm import tqdm
 
 from .utils import HypergraphLazyParser
@@ -10,11 +14,15 @@ def quantitative_analysis(hg: HypergraphLazyParser,
     metric_keys = include_metrics or list_metrics()
 
     results = dict()
-    for metric_key in tqdm(metric_keys, desc="Computing metrics", leave=False):
+    for metric_key in tqdm(metric_keys, desc=str(hg), leave=False):
         if metric_key in exclude_metrics:
             continue
         _Metric = get_metric(metric_key)
         metric = _Metric()
-        metric_value = metric.compute(hg)
+        try:
+            metric_value = metric.compute(hg)
+        except MemoryError:
+            logger.warning(f"MemoryError computing metric {metric_key} for hypergraph {hg}")
+            metric_value = None
         results[metric_key] = metric_value
     return results
