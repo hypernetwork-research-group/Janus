@@ -114,15 +114,23 @@ hydra-stats analysis <OPTIONS>
 
 ## Compare
 
+First of all you need to download the datasets and analyze them:
+
 ```bash
 hydra-stats parse [DATASET_NAME]
 hydra-stats analyze --root-dir references
 ```
 
-## Report
+At this point, you can perform analysis over all hypergraphs in the `samples/` directory:
 
 ```bash
-hydra-stats report <OPTIONS>
+hydra-stats analyze
+```
+
+Finally, run the comparison script to compare each sample with its relative reference.
+
+```bash
+hydra-stats compare
 ```
 
 ## Reproducibility
