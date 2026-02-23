@@ -112,6 +112,13 @@ The learning rate is determined using a learning rate finder strategy.
 hydra-stats analysis <OPTIONS>
 ```
 
+## Compare
+
+```bash
+hydra-stats parse [DATASET_NAME]
+hydra-stats analyze <OPTIONS>
+```
+
 ## Report
 
 ```bash
