@@ -48,7 +48,6 @@ def compare(
             continue
         references[dataset_name] = results
     for path, results in tqdm(results_discovery(root_dir)):
-        print(path)
         dataset_name = results['dataset_name']
         reference = references[dataset_name]
         comparison_path = path.with_suffix(".comparison.json")
