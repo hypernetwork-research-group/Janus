@@ -116,7 +116,7 @@ hydra-stats analysis <OPTIONS>
 
 ```bash
 hydra-stats parse [DATASET_NAME]
-hydra-stats analyze <OPTIONS>
+hydra-stats analyze --root-dir references
 ```
 
 ## Report
