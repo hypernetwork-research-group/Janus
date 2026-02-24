@@ -5,6 +5,8 @@ import json
 import typer
 from tqdm import tqdm
 
+from concurrent.futures import ProcessPoolExecutor
+
 from hydra.core.analysis.utils import hif_discovery, results_discovery, comparison_discovery
 from hydra.core.analysis.quantitative import quantitative_analysis
 from hydra.core.analysis.comparative import comparative_analysis

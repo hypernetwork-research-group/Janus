@@ -25,6 +25,15 @@ class Name(Metric):
         return a if a == b else [a, b]
 
 @register_metric()
+class Kind(Metric):
+    
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        return hg.xgi_hypergraph['kind']
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return a if a == b else [a, b]
+
+@register_metric()
 class NumberOfNodes(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
@@ -163,7 +172,8 @@ import numpy as np
 class HyperPortraitDivergence(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-        potrait = np.array(hyperedge_portrait(hg.xgi_hypergraph)).tolist()
+        potrait = hyperedge_portrait(hg.xgi_hypergraph)
+        potrait = np.array(potrait).tolist()
         return {
             "hyperedge_portrait": potrait
         }
