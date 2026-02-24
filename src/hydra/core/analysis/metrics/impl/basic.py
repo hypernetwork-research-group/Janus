@@ -119,7 +119,6 @@ class LineGraphModularity(Metric):
 class BipartiteGraphModularity(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-        xgi_hypergraph = hg.xgi_hypergraph
         bipartite_graph = hg.to_bipartite_graph()
         communities = nx.algorithms.community.louvain_communities(bipartite_graph)
         modularity = nx.algorithms.community.modularity(bipartite_graph, communities)
@@ -133,8 +132,8 @@ class HypergraphModularity(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
         hypernetx_hypergraph = hg.to_hypernetx_hypergraph()
-        graph = hg.to_graph()
-        communities = nx.algorithms.community.louvain_communities(graph)
+        communities = hmod.kumar(hypernetx_hypergraph)
+        communities = hmod.last_step(hypernetx_hypergraph, communities)
         modularity = hmod.modularity(hypernetx_hypergraph, communities)
         return modularity
 

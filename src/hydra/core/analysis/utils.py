@@ -24,7 +24,8 @@ class HypergraphLazyParser:
     
     @cache
     def to_graph(self):
-        return xgi.to_graph(self.xgi_hypergraph)
+        G = xgi.to_graph(self.xgi_hypergraph)
+        return G
     
     @cache
     def to_bipartite_graph(self):
@@ -36,14 +37,30 @@ class HypergraphLazyParser:
 
     @cache
     def to_hypernetx_hypergraph(self):
-        hyperedges = self.xgi_hypergraph.edges.members()
-        return hnx.Hypergraph(hyperedges)
+        hif_dict = xgi.to_hif_dict(self.xgi_hypergraph)
+        hypernetx_hypergraph = hnx.from_hif(hif_dict) # Convert from xgi to hypernetx using HIF as an intermediate format
+        df = hypernetx_hypergraph.edges.dataframe
+        ps = hypernetx_hypergraph.edges.property_store
+        df = ps.properties
+        # Ensure weight exists and is float
+        if "weight" not in df.columns:
+            df["weight"] = 1.0
+        else:
+            # Convert the entire column to float in-place
+            df["weight"] = df["weight"].astype("float64")
+
+        # Also make the default weight float for any edges that get inserted later
+        ps.set_defaults({"weight": 1.0})
+        return hypernetx_hypergraph
 
     def __str__(self):
         return f"{self.__class__.__name__}({str(self.xgi_hypergraph)})"
     
     def __repr__(self):
         return f"{self.__class__.__name__}({repr(self.xgi_hypergraph)})"
+    
+    def __getitem__(self, key):
+        return self.xgi_hypergraph[key]
 
 def hif_discovery(path: Path | str):
     for path in file_discovery(path, [".hif.json", ".hif.jsonl"]):
