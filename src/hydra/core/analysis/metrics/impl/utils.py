@@ -152,99 +152,56 @@ def H_to_G_mapping(H):
 
     return G
 
-import numpy as np
-import networkx as nx
-import multiprocessing as mp
-import os
-
-_WORKER_G = None
-
-def _init_worker(G):
-    global _WORKER_G
-    _WORKER_G = G
-
-def _sssp_from_source(src):
-    # single-source shortest path lengths (unweighted BFS)
-    dist = dict(nx.single_source_shortest_path_length(_WORKER_G, src))
-    dmax = max(dist.values()) if dist else 0
-    return src, dist, dmax
-
 def hyperedge_portrait(H):
+    
+    """""""""""
+    The hyperedge-portrait of the given hypergraph H.
+    The hyperedge portrait is a tensor with four indices whose entry B_{m,n,l,k}
+    gives the number of hyperedges of size m having k hyperedges of size n at
+    distance l. Two hyperedges are at distance 1 if they share at least one node.
+    
+    Parameters:
+    ---------------
+    H (xgi.Hypergraph) : the input hypergraph.
+    ---------------
+    
+    Returns: 
+        B (numpy.array) : the hyperedge-portrait of H, as a 4-dimensional array. 
+        
+    """""""""""
+    
     G = H_to_G_mapping(H)
     N = G.number_of_nodes()
     sizes_dict = nx.get_node_attributes(G, 'size')
     s_max = np.max( xgi.unique_edge_sizes(H) )
     # connected components
-    CC = [G.subgraph(c).copy() for c in tqdm(nx.connected_components(G), desc="Components", leave=False)]
+    CC = [G.subgraph(c).copy() for c in nx.connected_components(G)]
 
-    # compute all shortest paths and diameter to initialize B
-    dist_dict = {}
-    dia = 0
+    # compute all shortest paths and get diameter to inizialize B
+    dist_dict = dict()
+    lengths = set()
+    for Gc in tqdm(CC, desc="Computing shortest paths", leave=False):
+        for i in tqdm(Gc.nodes, desc="Nodes in CC", leave=False):
+            dist_dict[i] = nx.shortest_path_length(Gc, i)
+            lengths |= set( dist_dict[i].values() )
 
-    n_jobs = os.cpu_count() or 1
-
-    for Gc in tqdm(CC, desc="Computing distances", leave=False):
-        nodes = list(Gc.nodes())
-        if not nodes:
-            continue
-
-        # Choose a sensible chunksize to reduce IPC overhead
-        chunksize = max(1, len(nodes) // (n_jobs * 8))
-
-        # NOTE: On Windows you MUST put this whole block under:
-        # if __name__ == "__main__":
-        with mp.get_context("spawn").Pool(
-            processes=n_jobs,
-            initializer=_init_worker,
-            initargs=(Gc,),
-        ) as pool:
-            it = pool.imap_unordered(_sssp_from_source, nodes, chunksize=chunksize)
-
-            for src, dist, dmax in tqdm(
-                it,
-                total=len(nodes),
-                desc="Distances",
-                leave=False,
-                mininterval=1.0
-            ):
-                dist_dict[src] = dist
-                if dmax > dia:
-                    dia = dmax
-
+    dia = max(lengths)
     B = np.zeros((s_max-1, s_max-1, dia+1, N), dtype=int) 
     
-    S = s_max - 1          # number of size bins (size-2)
-    L = dia + 1            # number of distance bins
-    P = S * L              # flattened (n,l) pairs
-
-    # 2D view so updates are cheap: B2[m, p, k] <-> B[m, n, l, k]
-    B2 = B.reshape(S, P, N)
-    p_idx = np.arange(P, dtype=np.int32)
-
-    for Gc in tqdm(CC, desc="Building portrait", leave=False):
-        nodes = list(Gc.nodes())
-        if not nodes:
-            continue
-
-        # sizes aligned with `nodes`
-        size_idx = np.fromiter((sizes_dict[u] - 2 for u in nodes), dtype=np.int32, count=len(nodes))
-        size_mul = size_idx * L  # precompute n*L for each node (used in bincount)
-
-        # map node -> position to get m fast without dict lookups
-        pos = {u: t for t, u in enumerate(nodes)}
-
-        for i in tqdm(nodes, desc="Hyperedges", leave=False, mininterval=1.0):
-            m = size_idx[pos[i]]
+    for Gc in tqdm(CC, desc="Processing connected components", leave=False):
+        for i in tqdm(Gc.nodes, desc="Nodes in CC", leave=False):
+            m = sizes_dict[i]-2
             dd_i = dist_dict[i]
+            counter = np.zeros((s_max-1, dia+1), dtype=int)
 
-            # distances aligned with `nodes`
-            dist_arr = np.fromiter((dd_i[u] for u in nodes), dtype=np.int32, count=len(nodes))
+            for j in Gc.nodes:
+                counter[sizes_dict[j]-2][dd_i[j]] += 1
 
-            # counter_flat[p] = how many j fall in (n,l) encoded by p=n*L+l
-            counter_flat = np.bincount(size_mul + dist_arr, minlength=P)
-
-            # For each p (i.e., each (n,l)), increment B2[m, p, counter_flat[p]]
-            np.add.at(B2[m], (p_idx, counter_flat), 1)
+            for n in range(s_max-1):
+                for l in range(dia+1):
+                    k = counter[n][l]
+                    B[m][n][l][k] += 1 
+                    
     return B
 
 #####################################################################
@@ -285,8 +242,6 @@ def pad_h_portraits (B1,B2):
         B2 = np.append(B2, to_stack, axis=i)
       
     return (B1, B2)
-
-
 
 def hyper_portrait_divergence(B1, B2):
     
