@@ -68,6 +68,8 @@ class FeaturesDataModule(L.LightningDataModule):
                              "hyperedge_feature": self.hyperedge_feature,
                          })
 
+        dataset.set_format(type='torch')
+
         if not self.node_features_dataset_dir.exists():
             dataset.save_to_disk(self.node_features_dataset_dir)
     

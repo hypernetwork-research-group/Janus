@@ -480,7 +480,10 @@ class DiffusionTransformer(L.LightningModule):
         pass
 
     def predict_step(self, batch, batch_idx):
-        z_x_T, z_y_T = batch
+        z_x_T = batch['node_features']
+        z_y_T = batch['hyperedge_features']
+        
+        z_y_T = torch.randn_like(z_y_T)
 
         B, N, F = z_x_T.size()
         _, M, _ = z_y_T.size()

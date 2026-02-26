@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 import lightning as L
 from tqdm.rich import tqdm
@@ -8,6 +9,8 @@ import xgi
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
 from hydra.core.data.datamodules import FeaturesDataModule
+
+logger = logging.getLogger(__name__)
 
 # TODO: Implement this
 
@@ -50,6 +53,7 @@ def sample_ddm(
             datamodule=datamodule,
             ckpt_path=ckpt_path,
         )
+        logger.info(f"Got {len(predictions)} predictions from the model.")
 
         for incidence_matrices, *_ in tqdm(predictions):
             for incidence_matrix in incidence_matrices:

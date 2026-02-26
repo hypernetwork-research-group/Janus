@@ -54,8 +54,8 @@ def main_callback(
     persistent_workers: Annotated[bool, typer.Option("--persistent-workers/--no-persistent-workers", help="Whether DataLoader should use persistent workers.")] = True,
     batch_size: Annotated[int | None, typer.Option("--batch-size", help="Batch size for DataLoader.")] = None,
     drop_last: Annotated[bool, typer.Option("--drop-last/--no-drop-last", help="Whether to drop the last incomplete batch in DataLoader.")] = False,
-    node_feature: Annotated[str, typer.Option("--node-feature", help="Node feature to use for training.")] = "eigsh",
-    hyperedge_feature: Annotated[str, typer.Option("--hyperedge-feature", help="Hyperedge feature to use for training.")] = "eigsh",
+    node_feature: Annotated[str, typer.Option("--node-feature", help="Node feature to use for training.")] = "n2v",
+    hyperedge_feature: Annotated[str, typer.Option("--hyperedge-feature", help="Hyperedge feature to use for training.")] = "n2v",
     # DataModuleConfig options
     data_dir: Annotated[Path, typer.Option("--data-dir", help="Data directory for datasets.")] = Path("./data"),
     train_split: Annotated[str, typer.Option("--train-split", help="Dataset split(s) to use for training.")] = "full",
