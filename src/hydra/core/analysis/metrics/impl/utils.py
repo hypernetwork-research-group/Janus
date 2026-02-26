@@ -240,7 +240,7 @@ def pad_h_portraits (B1,B2):
         dims[i] = max_dim-dims[i]    
         to_stack = np.zeros(dims, dtype=int)
         B2 = np.append(B2, to_stack, axis=i)
-      
+
     return (B1, B2)
 
 def hyper_portrait_divergence(B1, B2):
