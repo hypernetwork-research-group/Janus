@@ -153,89 +153,60 @@ def H_to_G_mapping(H):
     
     return G
 
-#######################
 import numpy as np
 import networkx as nx
-from scipy.sparse.csgraph import shortest_path
 
-def hyperedge_portrait(H, dense_limit=2500):
-    """
-    Faster hyperedge portrait using SciPy shortest paths + vectorized bincount updates.
-
-    dense_limit:
-        If a connected component has <= dense_limit nodes, we build all row-histograms
-        with one big bincount (fastest, but uses O(m^2) temporaries).
-        Otherwise we fall back to per-row bincount (lower peak RAM).
-    """
+def hyperedge_portrait(H):
+    
+    """""""""""
+    The hyperedge-portrait of the given hypergraph H.
+    The hyperedge portrait is a tensor with four indices whose entry B_{m,n,l,k}
+    gives the number of hyperedges of size m having k hyperedges of size n at
+    distance l. Two hyperedges are at distance 1 if they share at least one node.
+    
+    Parameters:
+    ---------------
+    H (xgi.Hypergraph) : the input hypergraph.
+    ---------------
+    
+    Returns: 
+        B (numpy.array) : the hyperedge-portrait of H, as a 4-dimensional array. 
+        
+    """""""""""
+    
     G = H_to_G_mapping(H)
-
-    sizes = nx.get_node_attributes(G, "size")
-    s_max = int(max(xgi.unique_edge_sizes(H)))
-    S = s_max - 1
-
-    components = [list(c) for c in nx.connected_components(G)]
     N = G.number_of_nodes()
+    sizes_dict = nx.get_node_attributes(G, 'size')
+    s_max = np.max( xgi.unique_edge_sizes(H) )
+    # connected components
+    CC = [G.subgraph(c).copy() for c in nx.connected_components(G)]
 
-    # ---- Pass 1: compute distances in C (SciPy) and global diameter ----
-    comp_store = []
-    dia = 0
-    for nodes in components:
-        A = nx.to_scipy_sparse_array(G, nodelist=nodes, format="csr", dtype=np.uint8)
-        D = shortest_path(A, directed=False, unweighted=True)  # float array
-        D = D.astype(np.int32, copy=False)
-        dia = max(dia, int(D.max()))
+    # compute all shortest paths and get diameter to inizialize B
+    dist_dict = dict()
+    lengths = set()
+    for Gc in CC:
+        for i in Gc.nodes:
+            dist_dict[i] = nx.shortest_path_length(Gc, i)
+            lengths |= set( dist_dict[i].values() )
 
-        comp_sizes = np.fromiter((sizes[u] - 2 for u in nodes),
-                                 dtype=np.int32, count=len(nodes))
-        comp_store.append((comp_sizes, D))
+    dia = max(lengths)
+    B = np.zeros((s_max-1, s_max-1, dia+1, N), dtype=int) 
+    
+    for Gc in CC:
+        for i in Gc.nodes:
+            m = sizes_dict[i]-2
+            dd_i = dist_dict[i]
+            counter = np.zeros((s_max-1, dia+1), dtype=int)
 
-    L = dia + 1
-    p = S * L
+            for j in Gc.nodes:
+                counter[sizes_dict[j]-2][dd_i[j]] += 1
 
-    # B[m,n,l,k]
-    B = np.zeros((S, S, L, N), dtype=np.int32)
-
-    # Flatten (n,l) -> b = n*L + l
-    base = (np.arange(p, dtype=np.int64) * N)  # for indexing (b,k) into length p*N
-
-    # We'll update a reshaped view: Bm[m, b, k]
-    Bm = B.reshape(S, p, N)
-
-    # ---- Pass 2: build portrait via bincount (no Python inner loops) ----
-    for comp_sizes, D in comp_store:
-        mC = D.shape[0]
-
-        # bins[i,j] = (size_index_of_j)*L + dist(i,j)  in [0, p)
-        bins = D + (comp_sizes[None, :] * L)
-
-        # counts_rows[i, b] = number of targets j in bin b for source i
-        if mC <= dense_limit:
-            # One big bincount for ALL rows (fastest; uses O(mC^2) temporaries)
-            row_offsets = np.repeat((np.arange(mC, dtype=np.int64) * p), mC)
-            idx = row_offsets + bins.ravel().astype(np.int64, copy=False)
-            counts_rows = np.bincount(idx, minlength=mC * p).reshape(mC, p).astype(np.int32)
-        else:
-            # Lower peak RAM: per-row bincount (still in C, just more calls)
-            counts_rows = np.empty((mC, p), dtype=np.int32)
-            for i in range(mC):
-                counts_rows[i] = np.bincount(bins[i], minlength=p)
-
-        # For each source-size m, we need:
-        #   for every bin b: Bm[m, b, counts_rows[i,b]] += 1  (over sources i of that m)
-        # Do this as a 2D histogram over (b,k) using one bincount per m.
-        for m_val in range(S):
-            rows = np.nonzero(comp_sizes == m_val)[0]
-            if rows.size == 0:
-                continue
-
-            k = counts_rows[rows]                     # shape (r, p)
-            idx2 = (k.astype(np.int64, copy=False) + base).ravel()  # (r*p,) in [0, p*N)
-            hist = np.bincount(idx2, minlength=p * N).reshape(p, N)
-            Bm[m_val] += hist.astype(np.int32, copy=False)
-
+            for n in range(s_max-1):
+                for l in range(dia+1):
+                    k = counter[n][l]
+                    B[m][n][l][k] += 1 
+                    
     return B
-
-#######################
 
 def pad_h_portraits (B1,B2):
     """""""""
