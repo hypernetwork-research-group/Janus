@@ -53,13 +53,10 @@ def sample_ddm(
             datamodule=datamodule,
             ckpt_path=ckpt_path,
         )
-        logger.info(f"Got {len(predictions)} predictions from the model.")
 
         for incidence_matrices, *_ in tqdm(predictions):
             for incidence_matrix in incidence_matrices:
                 for col in incidence_matrix.T:
-                    if len(hyperedges) >= 1512:
-                        break
                     nodes = torch.nonzero(col).squeeze().tolist()
                     if isinstance(nodes, int):
                         nodes = [nodes]
@@ -72,6 +69,7 @@ def sample_ddm(
             dist[len(he)] += 1
         print(dist)
     
+    hyperedges = list(hyperedges)
     hypergraph = xgi.Hypergraph(hyperedges)
 
     return hypergraph
