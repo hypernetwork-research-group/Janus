@@ -9,9 +9,10 @@ from itertools import combinations
 # From the https://github.com/cosimoagostinelli/Hor_dissimilarity_measures repository.
 # Code to reproduce the results presented in the paper "Higher-order dissimilarity measures for hypergraph comparison", C. Agostinelli, M. Mancastroppa, A. Barrat (2025), https://arxiv.org/abs/2503.16959.
 
-                  #  ------------------   Hyper-NetSimile  -------------------  #
+#  ------------------   Hyper-NetSimile  -------------------  #
 
 from multiprocessing import Pool
+from tqdm import tqdm
 
 def feature_vec (H):
     """""""""
@@ -63,8 +64,7 @@ def feature_vec (H):
     # 9 - list of number of neighbors of a node's egonet
     pd9_ego_neig = []
 
-
-    for i in H.nodes:
+    for i in tqdm(H.nodes, desc="Nodes", leave=False):
 
         neig_i = H.nodes.neighbors(i)
         pd1_nneig.append( len(neig_i) )
@@ -112,101 +112,142 @@ def feature_vec (H):
         
     return (hgraph_fvec)
 
+#  ------------------   Hyper-Portrait Divergence  -------------------  #
 
+#####################################################################
 
+from collections import defaultdict
 
-                #  ------------------   Hyper-Portrait Divergence  -------------------  #
-    
-    
 def H_to_G_mapping(H):
-    
-    """""""""""
-    Map the hypergraph to a graph where each node represents
-    a former hyperedge, and two nodes are connected if the original
-    hyperedges shared at least one node. Every node has an attribute,
-    that is the size of the hyperedge it represents.
-    
-    Parameters:
-    ---------------
-    H (xgi.hypergraph) : the hypergraph to map.
-    ---------------
-    
-    Returns: 
-        G (networkx.Graph): the network G resulting from the mapping. 
-    
-    """""""""""
-
-    new_nodes = list(H.edges)
-    new_edges = []
+    """
+    Map hypergraph H to a graph G where each node is a hyperedge of H,
+    and two nodes are connected iff the corresponding hyperedges intersect.
+    Node attribute 'size' is the size of the hyperedge.
+    """
+    # hyperedge sizes (xgi provides this)
     sizes = H.edges.size.asdict()
-    
-    for (id1,id2) in combinations(H.edges, 2):
-        e1 = H.edges.members(id1)
-        e2 = H.edges.members(id2)
-        if len(e1.intersection(e2)) > 0:
-            new_edges.append((id1,id2))      
-            
+
+    # Build node -> incident hyperedges index in one pass over incidences
+    node_to_edges = defaultdict(list)
+    for eid in tqdm(H.edges, desc="Building node-edge index", leave=False):
+        for n in H.edges.members(eid):
+            node_to_edges[n].append(eid)
+
+    # Collect intersecting hyperedge pairs via shared nodes
+    # Use frozenset to deduplicate pairs regardless of order
+    edge_pairs = set()
+    for inc in tqdm(node_to_edges.values(), desc="Collecting edge pairs", leave=False):
+        if len(inc) > 1:
+            for e1, e2 in combinations(inc, 2):
+                edge_pairs.add(frozenset((e1, e2)))
+
+    # Build graph
     G = nx.Graph()
-    G.add_nodes_from(new_nodes)
-    G.add_edges_from(new_edges)
-    nx.set_node_attributes(G, sizes, name='size')
-    
+
+    # Add all hyperedges as nodes (keeps isolated ones too) + attach size attribute
+    G.add_nodes_from((eid, {"size": sizes.get(eid)}) for eid in H.edges)
+
+    # Add overlap edges
+    G.add_edges_from(tuple(p) for p in edge_pairs)
+
     return G
 
 import numpy as np
 import networkx as nx
+import multiprocessing as mp
+import os
+
+_WORKER_G = None
+
+def _init_worker(G):
+    global _WORKER_G
+    _WORKER_G = G
+
+def _sssp_from_source(src):
+    # single-source shortest path lengths (unweighted BFS)
+    dist = dict(nx.single_source_shortest_path_length(_WORKER_G, src))
+    dmax = max(dist.values()) if dist else 0
+    return src, dist, dmax
 
 def hyperedge_portrait(H):
-    
-    """""""""""
-    The hyperedge-portrait of the given hypergraph H.
-    The hyperedge portrait is a tensor with four indices whose entry B_{m,n,l,k}
-    gives the number of hyperedges of size m having k hyperedges of size n at
-    distance l. Two hyperedges are at distance 1 if they share at least one node.
-    
-    Parameters:
-    ---------------
-    H (xgi.Hypergraph) : the input hypergraph.
-    ---------------
-    
-    Returns: 
-        B (numpy.array) : the hyperedge-portrait of H, as a 4-dimensional array. 
-        
-    """""""""""
-    
     G = H_to_G_mapping(H)
     N = G.number_of_nodes()
     sizes_dict = nx.get_node_attributes(G, 'size')
     s_max = np.max( xgi.unique_edge_sizes(H) )
     # connected components
-    CC = [G.subgraph(c).copy() for c in nx.connected_components(G)]
+    CC = [G.subgraph(c).copy() for c in tqdm(nx.connected_components(G), desc="Components", leave=False)]
 
-    # compute all shortest paths and get diameter to inizialize B
-    dist_dict = dict()
-    lengths = set()
-    for Gc in CC:
-        for i in Gc.nodes:
-            dist_dict[i] = nx.shortest_path_length(Gc, i)
-            lengths |= set( dist_dict[i].values() )
+    # compute all shortest paths and diameter to initialize B
+    dist_dict = {}
+    dia = 0
 
-    dia = max(lengths)
+    n_jobs = os.cpu_count() or 1
+
+    for Gc in tqdm(CC, desc="Computing distances", leave=False):
+        nodes = list(Gc.nodes())
+        if not nodes:
+            continue
+
+        # Choose a sensible chunksize to reduce IPC overhead
+        chunksize = max(1, len(nodes) // (n_jobs * 8))
+
+        # NOTE: On Windows you MUST put this whole block under:
+        # if __name__ == "__main__":
+        with mp.get_context("spawn").Pool(
+            processes=n_jobs,
+            initializer=_init_worker,
+            initargs=(Gc,),
+        ) as pool:
+            it = pool.imap_unordered(_sssp_from_source, nodes, chunksize=chunksize)
+
+            for src, dist, dmax in tqdm(
+                it,
+                total=len(nodes),
+                desc="Distances",
+                leave=False,
+                mininterval=1.0
+            ):
+                dist_dict[src] = dist
+                if dmax > dia:
+                    dia = dmax
+
     B = np.zeros((s_max-1, s_max-1, dia+1, N), dtype=int) 
     
-    for Gc in CC:
-        for i in Gc.nodes:
-            m = sizes_dict[i]-2
+    S = s_max - 1          # number of size bins (size-2)
+    L = dia + 1            # number of distance bins
+    P = S * L              # flattened (n,l) pairs
+
+    # 2D view so updates are cheap: B2[m, p, k] <-> B[m, n, l, k]
+    B2 = B.reshape(S, P, N)
+    p_idx = np.arange(P, dtype=np.int32)
+
+    for Gc in tqdm(CC, desc="Building portrait", leave=False):
+        nodes = list(Gc.nodes())
+        if not nodes:
+            continue
+
+        # sizes aligned with `nodes`
+        size_idx = np.fromiter((sizes_dict[u] - 2 for u in nodes), dtype=np.int32, count=len(nodes))
+        size_mul = size_idx * L  # precompute n*L for each node (used in bincount)
+
+        # map node -> position to get m fast without dict lookups
+        pos = {u: t for t, u in enumerate(nodes)}
+
+        for i in tqdm(nodes, desc="Hyperedges", leave=False, mininterval=1.0):
+            m = size_idx[pos[i]]
             dd_i = dist_dict[i]
-            counter = np.zeros((s_max-1, dia+1), dtype=int)
 
-            for j in Gc.nodes:
-                counter[sizes_dict[j]-2][dd_i[j]] += 1
+            # distances aligned with `nodes`
+            dist_arr = np.fromiter((dd_i[u] for u in nodes), dtype=np.int32, count=len(nodes))
 
-            for n in range(s_max-1):
-                for l in range(dia+1):
-                    k = counter[n][l]
-                    B[m][n][l][k] += 1 
-                    
+            # counter_flat[p] = how many j fall in (n,l) encoded by p=n*L+l
+            counter_flat = np.bincount(size_mul + dist_arr, minlength=P)
+
+            # For each p (i.e., each (n,l)), increment B2[m, p, counter_flat[p]]
+            np.add.at(B2[m], (p_idx, counter_flat), 1)
     return B
+
+#####################################################################
 
 def pad_h_portraits (B1,B2):
     """""""""

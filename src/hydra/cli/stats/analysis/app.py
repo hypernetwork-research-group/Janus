@@ -27,11 +27,13 @@ def analyze(
         if results_path.exists():
             with open(results_path, "r") as f:
                 results = json.load(f)
+        original_keys = set(results.keys())
         results.update(quantitative_analysis(hypergraph,
                                      include_metrics=include_metrics,
                                      exclude_metrics=[metric for metric in list(results.keys()) + exclude_metrics if metric not in force_metrics]))
-        with open(results_path, "w") as f:
-            json.dump(results, f, indent=None, sort_keys=True, separators=(",", ":"))
+        if set(results.keys()) != original_keys:
+            with open(results_path, "w") as f:
+                json.dump(results, f, indent=None, sort_keys=True, separators=(",", ":"))
 
 @app.command()
 def compare(
