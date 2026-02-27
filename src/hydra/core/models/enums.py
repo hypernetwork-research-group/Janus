@@ -21,3 +21,6 @@ DDM_CONFIGS = {
     ModelSize.S.name: ModelSizeConfig(256, 2, 4),
     ModelSize.M.name: ModelSizeConfig(512, 4, 8),
 }
+
+BVAE_CONFIGS_REVERSE = {v: k for k, v in BVAE_CONFIGS.items()}
+DDM_CONFIGS_REVERSE = {v: k for k, v in DDM_CONFIGS.items()}

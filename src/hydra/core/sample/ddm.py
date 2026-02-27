@@ -8,6 +8,7 @@ import xgi
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
+from hydra.core.models.enums import DDM_CONFIGS_REVERSE
 from hydra.core.data.datamodules import FeaturesDataModule
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def sample_ddm(
 
     model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
 
-    model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{model.model_size_config}" # TODO: This should probably be defined in the model
+    model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
 
     trainer = L.Trainer(
         default_root_dir="logs/daqh/email-Enron/DDM-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
@@ -75,5 +76,6 @@ def sample_ddm(
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
     hypergraph['name'] = model_name
+    hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
 
     return hypergraph

@@ -8,6 +8,7 @@ import xgi
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig, RandomWalkConfig
 from hydra.core.models.modules import HypergraphBetaVAE
+from hydra.core.models.enums import BVAE_CONFIGS_REVERSE
 from hydra.core.data.datamodules import HypergraphDataModule
 
 def sample_bvae(
@@ -20,7 +21,7 @@ def sample_bvae(
 
     model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
 
-    model_name = f"BVAE-HyDRA{'-V' if model.vertex_encoding else ''}-{model.model_size_config}"
+    model_name = f"BVAE-HyDRA{'-V' if model.vertex_encoding else ''}-{BVAE_CONFIGS_REVERSE[model.model_size_config]}"
 
     trainer = L.Trainer(
         default_root_dir="logs/daqh/email-Enron/BVAE-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
@@ -69,5 +70,6 @@ def sample_bvae(
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
     hypergraph['name'] = model_name
+    hypergraph['kind'] = "unconditional" if model.vertex_encoding else "conditional"
 
     return hypergraph
