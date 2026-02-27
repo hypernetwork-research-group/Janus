@@ -24,6 +24,8 @@ def sample_ddm(
 
     model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
 
+    model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{model.model_size_config}" # TODO: This should probably be defined in the model
+
     trainer = L.Trainer(
         default_root_dir="logs/daqh/email-Enron/DDM-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
         logger=False,
@@ -71,5 +73,7 @@ def sample_ddm(
     
     hyperedges = list(hyperedges)
     hypergraph = xgi.Hypergraph(hyperedges)
+    hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+    hypergraph['name'] = model_name
 
     return hypergraph

@@ -20,6 +20,8 @@ def sample_bvae(
 
     model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
 
+    model_name = f"BVAE-HyDRA{'-V' if model.vertex_encoding else ''}-{model.model_size_config}"
+
     trainer = L.Trainer(
         default_root_dir="logs/daqh/email-Enron/BVAE-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
         logger=False,
@@ -66,5 +68,6 @@ def sample_bvae(
 
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+    hypergraph['name'] = model_name
 
     return hypergraph
