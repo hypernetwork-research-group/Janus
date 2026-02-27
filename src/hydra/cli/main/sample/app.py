@@ -1,6 +1,7 @@
 from typing import Annotated
 from pathlib import Path
 import json
+from os import makedirs
 
 import typer
 import xgi
@@ -8,6 +9,7 @@ import xgi
 from hydra.core.sample.bvae import sample_bvae
 from hydra.core.sample.ddm import sample_ddm
 from hydra.core.configs import RandomWalkConfig
+from .utils import get_current_sample_path
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 
@@ -15,10 +17,12 @@ app = typer.Typer(help="MyCLI: a tiny example Typer app.")
 def main(
     ctx: typer.Context,
     ckpt_path: Annotated[Path, typer.Option("--ckpt-path", "--ckpt", help="Path to the checkpoint to sample from.")],
+    samples_path: Annotated[Path, typer.Option("--samples-path", help="Path to the samples dir to save into.")] = Path('samples')
 ):
     """MyCLI: a tiny example Typer app."""
     ctx.ensure_object(dict)
     ctx.obj['ckpt_path'] = ckpt_path
+    ctx.obj['samples_path'] = samples_path
 
 @app.command()
 def bvae(
@@ -32,6 +36,7 @@ def bvae(
 ):
     """Train a model on the specified dataset."""
     ckpt_path = ctx.obj['ckpt_path']
+    samples_path = ctx.obj['samples_path']
     random_walk_config = RandomWalkConfig(p=p,
                                          q=q,
                                          alpha=alpha,
@@ -45,12 +50,18 @@ def bvae(
                 huggingface_datasets_config,
                 dataloader_config,
                 ckpt_path)
+    model_samples_path = samples_path / hypergraph['dataset_name'] / hypergraph['name']
+    current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
+    makedirs(current_sample_path, exist_ok=True)
     hif_dict = xgi.to_hif_dict(hypergraph)
+    with open(current_sample_path / "hypergraph.json") as f:
+        json.dump(hif_dict, f, indent=None, separators=(',', ":"))
 
 @app.command()
 def ddm(ctx: typer.Context,
         walk_length: Annotated[int, typer.Option("--walk-length", help="Length of each random walk.")] = 256):
     """Train a conditional model on the specified dataset."""
+    samples_path = ctx.obj['samples_path']
     huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
     dataloader_config = ctx.obj['dataloader_config']
     datamodule_config = ctx.obj['datamodule_config']
@@ -62,3 +73,9 @@ def ddm(ctx: typer.Context,
         walk_length,
         ckpt_path
     )
+    model_samples_path = samples_path / hypergraph['dataset_name'] / hypergraph['name']
+    current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
+    makedirs(current_sample_path, exist_ok=True)
+    hif_dict = xgi.to_hif_dict(hypergraph)
+    with open(current_sample_path / "hypergraph.json") as f:
+        json.dump(hif_dict, f, indent=None, separators=(',', ":"))
