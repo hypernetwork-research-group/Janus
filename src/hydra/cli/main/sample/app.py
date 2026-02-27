@@ -50,11 +50,12 @@ def bvae(
                 huggingface_datasets_config,
                 dataloader_config,
                 ckpt_path)
-    model_samples_path = samples_path / hypergraph['dataset_name'] / hypergraph['name']
+    model_samples_path = samples_path / hypergraph['dataset_name'].split("/")[-1] / hypergraph['name']
+    makedirs(model_samples_path, exist_ok=True)
     current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
     makedirs(current_sample_path, exist_ok=True)
     hif_dict = xgi.to_hif_dict(hypergraph)
-    with open(current_sample_path / "hypergraph.json") as f:
+    with open(current_sample_path / "hypergraph.hif.json", "w") as f:
         json.dump(hif_dict, f, indent=None, separators=(',', ":"))
 
 @app.command()
@@ -73,9 +74,10 @@ def ddm(ctx: typer.Context,
         walk_length,
         ckpt_path
     )
-    model_samples_path = samples_path / hypergraph['dataset_name'] / hypergraph['name']
+    model_samples_path = samples_path / hypergraph['dataset_name'].split("/")[-1] / hypergraph['name']
+    makedirs(model_samples_path, exist_ok=True)
     current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
     makedirs(current_sample_path, exist_ok=True)
     hif_dict = xgi.to_hif_dict(hypergraph)
-    with open(current_sample_path / "hypergraph.json") as f:
+    with open(current_sample_path / "hypergraph.hif.json", "w") as f:
         json.dump(hif_dict, f, indent=None, separators=(',', ":"))
