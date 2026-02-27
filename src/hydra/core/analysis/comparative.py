@@ -1,5 +1,3 @@
-from datasets import load_dataset, load_from_disk
-
 from .metrics.registry import list_metrics, get_metric
 
 def comparative_analysis(results: dict,
@@ -11,7 +9,7 @@ def comparative_analysis(results: dict,
 
     comparison_results = dict()
     for metric_key in metric_keys:
-        if metric_key in exclude_metrics:
+        if exclude_metrics and metric_key in exclude_metrics:
             continue
         _Metric = get_metric(metric_key)
         metric = _Metric()

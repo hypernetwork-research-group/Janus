@@ -15,7 +15,7 @@ def quantitative_analysis(hg: HypergraphLazyParser,
 
     results = dict()
     for metric_key in tqdm(metric_keys, desc=str(hg), leave=False):
-        if metric_key in exclude_metrics:
+        if exclude_metrics and metric_key in exclude_metrics:
             continue
         _Metric = get_metric(metric_key)
         metric = _Metric()
