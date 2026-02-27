@@ -152,56 +152,96 @@ def H_to_G_mapping(H):
 
     return G
 
+import numpy as np
+import networkx as nx
+import multiprocessing as mp
+import os
+from tqdm import tqdm
+
+_WORKER_G = None
+_WORKER_SIZE_IDX = None
+_WORKER_SMAX = None
+
+def _init_worker(G, size_idx, s_max):
+    global _WORKER_G, _WORKER_SIZE_IDX, _WORKER_SMAX
+    _WORKER_G = G
+    _WORKER_SIZE_IDX = size_idx
+    _WORKER_SMAX = s_max
+
+def _portrait_counter_from_source(src):
+    # single-source shortest path lengths (unweighted BFS)
+    dist = dict(nx.single_source_shortest_path_length(_WORKER_G, src))
+    dmax = max(dist.values()) if dist else 0
+
+    # Build exactly what the parent ultimately uses (counts by size-group and distance),
+    # instead of returning the full dist dict (huge pickles + RAM).
+    counter = np.zeros((_WORKER_SMAX - 1, dmax + 1), dtype=np.uint32)
+    for v, d in dist.items():
+        counter[_WORKER_SIZE_IDX[v], d] += 1
+
+    m = _WORKER_SIZE_IDX[src]
+    return m, counter, dmax
+
 def hyperedge_portrait(H):
-    
-    """""""""""
-    The hyperedge-portrait of the given hypergraph H.
-    The hyperedge portrait is a tensor with four indices whose entry B_{m,n,l,k}
-    gives the number of hyperedges of size m having k hyperedges of size n at
-    distance l. Two hyperedges are at distance 1 if they share at least one node.
-    
-    Parameters:
-    ---------------
-    H (xgi.Hypergraph) : the input hypergraph.
-    ---------------
-    
-    Returns: 
-        B (numpy.array) : the hyperedge-portrait of H, as a 4-dimensional array. 
-        
-    """""""""""
-    
     G = H_to_G_mapping(H)
     N = G.number_of_nodes()
-    sizes_dict = nx.get_node_attributes(G, 'size')
-    s_max = np.max( xgi.unique_edge_sizes(H) )
-    # connected components
-    CC = [G.subgraph(c).copy() for c in nx.connected_components(G)]
 
-    # compute all shortest paths and get diameter to inizialize B
-    dist_dict = dict()
-    lengths = set()
-    for Gc in tqdm(CC, desc="Computing shortest paths", leave=False):
-        for i in tqdm(Gc.nodes, desc="Nodes in CC", leave=False):
-            dist_dict[i] = nx.shortest_path_length(Gc, i)
-            lengths |= set( dist_dict[i].values() )
+    sizes_dict = nx.get_node_attributes(G, "size")
+    s_max = int(np.max(xgi.unique_edge_sizes(H)))
 
-    dia = max(lengths)
-    B = np.zeros((s_max-1, s_max-1, dia+1, N), dtype=int) 
-    
-    for Gc in tqdm(CC, desc="Processing connected components", leave=False):
-        for i in tqdm(Gc.nodes, desc="Nodes in CC", leave=False):
-            m = sizes_dict[i]-2
-            dd_i = dist_dict[i]
-            counter = np.zeros((s_max-1, dia+1), dtype=int)
+    # Precompute "size -> index" once (used everywhere)
+    size_idx = {u: sizes_dict[u] - 2 for u in G.nodes()}
 
-            for j in Gc.nodes:
-                counter[sizes_dict[j]-2][dd_i[j]] += 1
+    # connected components: store node lists (no subgraph .copy())
+    CC = [list(c) for c in tqdm(nx.connected_components(G), desc="Components", leave=False)]
 
-            for n in range(s_max-1):
-                for l in range(dia+1):
-                    k = counter[n][l]
-                    B[m][n][l][k] += 1 
-                    
+    dia = 0
+    rows = []  # store (m, counter) per source; much smaller than storing all dist dicts
+
+    n_jobs = 32  # os.cpu_count() or 1
+
+    # Use fork on POSIX to avoid pickling/copying the whole graph to each worker.
+    start_method = "fork" if os.name != "nt" else "spawn"
+    ctx = mp.get_context(start_method)
+
+    with ctx.Pool(
+        processes=n_jobs,
+        initializer=_init_worker,
+        initargs=(G, size_idx, s_max),
+        maxtasksperchild=200,  # helps keep worker memory stable on long runs
+    ) as pool:
+        for nodes in tqdm(CC, desc="Computing distances", leave=False):
+            if not nodes:
+                continue
+
+            chunksize = max(1, len(nodes) // (n_jobs * 8))
+            it = pool.imap_unordered(_portrait_counter_from_source, nodes, chunksize=chunksize)
+
+            for m, counter, dmax in tqdm(
+                it,
+                total=len(nodes),
+                desc="Distances",
+                leave=False,
+                mininterval=1.0,
+            ):
+                rows.append((m, counter))
+                if dmax > dia:
+                    dia = dmax
+
+    B = np.zeros((s_max - 1, s_max - 1, dia + 1, N), dtype=int)
+
+    # Same aggregation logic as your original code, but using counters produced by workers.
+    # IMPORTANT: we must also account for distances > dmax where the count is 0,
+    # because your original loops add B[..., l, 0] for those l as well.
+    for m, counter in rows:
+        L = counter.shape[1]
+        for n in range(s_max - 1):
+            for l in range(L):
+                k = int(counter[n, l])
+                B[m, n, l, k] += 1
+            for l in range(L, dia + 1):
+                B[m, n, l, 0] += 1
+
     return B
 
 #####################################################################
@@ -240,8 +280,10 @@ def pad_h_portraits (B1,B2):
         dims[i] = max_dim-dims[i]    
         to_stack = np.zeros(dims, dtype=int)
         B2 = np.append(B2, to_stack, axis=i)
-
+      
     return (B1, B2)
+
+
 
 def hyper_portrait_divergence(B1, B2):
     
