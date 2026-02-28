@@ -455,7 +455,7 @@ class DiffusionTransformer(L.LightningModule):
 
         if self.bvae.vertex_encoding:
             x_loss = F.mse_loss(x_v_pred, x_target)
-            self.log("training/x_loss", x_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
+            self.log("training/x_loss", x_loss.item(), prog_bar=False, on_step=True, on_epoch=False)
 
         else:
             x_loss = 0.0
@@ -470,9 +470,9 @@ class DiffusionTransformer(L.LightningModule):
         )
 
         # y_loss = F.mse_loss(y_v_pred, y_target)
-        self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=True)
+        self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=False)
         loss = x_loss + y_loss
-        self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=True)
+        self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
     @torch.no_grad()
