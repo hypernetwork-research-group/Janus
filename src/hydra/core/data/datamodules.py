@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union
 from multiprocessing import cpu_count
 import logging
-from abc import ABC
+import traceback
 
 import torch
 import lightning as L
@@ -186,19 +186,25 @@ class HypergraphDataModule(L.LightningDataModule):
         if not self.processed_dataset_dir.exists():
             dataset.save_to_disk(self.processed_dataset_dir)
 
-        # Here, we build a set of random walks for each hypergraph,
-        # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
-        dataset = DatasetDict({
-            k: Dataset.from_generator(transform(v,
-                                            samples_per_hyperedge=self.samples_per_hyperedge,
-                                            walk_length=self.walk_length,
-                                            p=self.p,
-                                            q=self.q,
-                                            alpha=self.alpha,
-                                            num_workers=self.num_workers),
-                                        cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
-            for k, v in dataset.items()
-        })
+        try:
+            # Here, we build a set of random walks for each hypergraph,
+            # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
+            dataset = DatasetDict({
+                k: Dataset.from_generator(transform(v,
+                                                samples_per_hyperedge=self.samples_per_hyperedge,
+                                                walk_length=self.walk_length,
+                                                p=self.p,
+                                                q=self.q,
+                                                alpha=self.alpha,
+                                                num_workers=self.num_workers),
+                                            cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}")
+                for k, v in dataset.items()
+            })
+        except Exception as e:
+            logger.error(f"Error during transformation: {e}")
+            logger.error(traceback.format_exc())
+            print("CAUSE:", repr(getattr(e, "__cause__", None)))
+            raise e
 
         # TODO: Adjust train, validation split logic
         # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
