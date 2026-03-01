@@ -33,7 +33,9 @@ def transform(dataset,
             p: float,
             q: float,
             alpha: float,
-            num_workers: int):
+            num_workers: int,
+            target_lambda: float = 1.0,
+            seed: int = 42):
     def _transform():
         for hypergraph_entry in dataset:
             ridx_hif_dict = hypergraph_entry['hif_dict']
@@ -47,11 +49,10 @@ def transform(dataset,
             sources = list(linegraph.nodes)
             neighborhoods = {node: list(linegraph.neighbors(node)) for node in linegraph.nodes}
             members = ridx_hypergraph.edges.members()
-            parallel_args = [(linegraph, samples_per_hyperedge, walk_length, p, q, alpha, 42, sources[i:i+10], neighborhoods, members) for i in range(0, len(sources), 10)]
+            parallel_args = [(linegraph, samples_per_hyperedge, walk_length, p, q, alpha, seed, sources[i:i+10], neighborhoods, members) for i in range(0, len(sources), 10)]
             with ProcessPoolExecutor(max_workers=num_workers) as executor:
                 paths = [path for result in tqdm(executor.map(metropolis_hastings_biased_random_walk, parallel_args), total=len(parallel_args)) for path in result]
             # Determine the target number of nodes
-            target_lambda = 1.0
             max_touched_nodes = max(len(path['touched_nodes']) for path in paths)
             num_nodes = ridx_hypergraph.num_nodes
             target_num_nodes = int(max_touched_nodes + (num_nodes - max_touched_nodes) * target_lambda)
