@@ -24,7 +24,7 @@ def sample_bvae(
     model_name = f"BVAE-HyDRA{'-V' if model.vertex_encoding else ''}-{BVAE_CONFIGS_REVERSE[model.model_size_config]}"
 
     trainer = L.Trainer(
-        default_root_dir="logs/daqh/email-Enron/BVAE-HyDRA-S/logs/version_0", # TODO: remove this hardcoded path
+        default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}/logs/version_0", # TODO: remove this hardcoded path
         logger=False,
         enable_checkpointing=False,
     )
