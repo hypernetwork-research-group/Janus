@@ -1,5 +1,6 @@
 import random
 from copy import deepcopy
+from math import isfinite
 
 import xgi
 
@@ -23,7 +24,7 @@ def metropolis_hastings_biased_random_walk(args):
                     previous = current
                     # current = current
                     # Add the node to the touched nodes if it's not already there
-                    if current not in walk_touched_nodes:
+                    if current not in walk:
                         touched_nodes = members[current]
                         walk_touched_nodes.update(touched_nodes)
                     walk.append(current) # Insert at the beginning
@@ -31,15 +32,19 @@ def metropolis_hastings_biased_random_walk(args):
                 cumulative_alphas = []
                 total_alpha = 0.0
                 for neighbor in neighbors:
-                    if neighbor == previous:
+                    if previous is None:
+                        alpha = 1.0
+                    elif neighbor == previous:
                         alpha = inv_p
-                    # elif G.has_edge(previous, neighbor):
-                    elif previous in neighborhoods[neighbor]:
+                    elif G.has_edge(previous, neighbor):
+                    # elif previous in neighborhoods[neighbor]:
                         alpha = 1
                     else:
                         alpha = inv_q
                     total_alpha += alpha
                     cumulative_alphas.append(total_alpha)
+                if not isfinite(total_alpha) or total_alpha <= 0:
+                    raise ValueError(f"Invalid total_alpha={total_alpha} for node {current} with neighbors {neighbors}. Check p, q values and graph structure.")
                 next_node = rng.choices(neighbors, k=1, cum_weights=cumulative_alphas)[0]
                 if a == 0.0:
                     accept = True
@@ -49,7 +54,7 @@ def metropolis_hastings_biased_random_walk(args):
                 if accept:
                     previous = current
                     current = next_node
-                if current not in walk_touched_nodes:
+                if current not in walk:
                     touched_nodes = members[current]
                     walk_touched_nodes.update(touched_nodes)
                 walk.append(current) # Insert at the beginning
