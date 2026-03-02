@@ -198,7 +198,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                                 alpha=self.alpha,
                                                 num_workers=self.num_workers),
                                             cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
-                                            writer_batch_size=500)
+                                            writer_batch_size=100)
                 for k, v in dataset.items()
             })
         except Exception as e:
