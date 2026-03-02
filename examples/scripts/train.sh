@@ -3,7 +3,7 @@ hydra --batch-size 32 -daqh/email-Enron train --min-epochs 3000 -lr 1e-4 --model
 hydra --batch-size 32 -daqh/NDC-classes train --min-epochs 3000 -lr 1e-4 --model-size S bvae
 hydra --batch-size 32 -daqh/contact-high-school train --min-epochs 3000 -lr 1e-4 --model-size S bvae
 hydra --batch-size 32 -daqh/contact-primary-school train --min-epochs 3000 -lr 1e-4 --model-size S bvae
-hydra --batch-size 16 -daqh/email-Eu train --min-epochs 3000 -lr 1e-4 --model-size S bvae
+hydra --batch-size 32 -daqh/email-Eu train --min-epochs 3000 -lr 1e-4 --model-size S bvae
 
 # DDM
 

@@ -75,7 +75,7 @@ class FeaturesDataModule(L.LightningDataModule):
     
     def setup(self, stage):
         self.dataset = load_from_disk(self.node_features_dataset_dir)
-    
+
     def train_dataloader(self):
         dataset = self.dataset
         return torch.utils.data.DataLoader(dataset[self.train_split],
