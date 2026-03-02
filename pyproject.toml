@@ -14,7 +14,6 @@ dependencies = [
     "hypernetx>=2.4.0",
     "rich>=14.3.2",
     "scikit-learn>=1.8.0",
-    "tensorboardx>=2.6.4",
     "typer>=0.21.1",
     "xgi>=0.10",
 ]
