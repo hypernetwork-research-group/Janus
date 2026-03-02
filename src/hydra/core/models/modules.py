@@ -348,16 +348,6 @@ class DiffusionTransformer(L.LightningModule):
             raise ValueError(f"Invalid inference_scheduler_type: {self.inference_scheduler_type}. Must be one of {SchedulerType.__args__}")
         self.save_hyperparameters()
 
-    def on_train_epoch_end(self):
-        if self.current_epoch % 500 == 0:
-            # Log weights
-            for name, param in self.named_parameters():
-                self.logger.experiment.add_histogram(
-                    tag=f"weights/{name}",
-                    values=param,
-                    global_step=self.current_epoch
-                )
-
     def on_train_start(self):
         self.bvae.eval()  # keep in eval mode
 
