@@ -1,6 +1,6 @@
 import lightning as L
 from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, TQDMProgressBar
 
 from hydra.core.models.modules import HypergraphBetaVAE
 from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
@@ -76,7 +76,7 @@ def train_bvae(
                 max_lr=1,
                 num_training_steps=300,
             )  if optimizer_config.learning_rate is None else LambdaCallback(),
-            RichProgressBar(
+            TQDMProgressBar(
                 refresh_rate=1,
             )
         ]

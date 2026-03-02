@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import lightning as L
-from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
+from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from hydra.core.models.modules import DiffusionTransformer, HypergraphBetaVAE
@@ -78,7 +78,7 @@ def train_ddm(
                 max_lr=1,
                 num_training_steps=300,
             )  if optimizer_config.learning_rate is None else LambdaCallback(),
-            RichProgressBar(
+            TQDMProgressBar(
                 refresh_rate=1,
             )
         ]

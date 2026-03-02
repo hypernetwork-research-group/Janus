@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import lightning as L
-from lightning.pytorch.callbacks.prediction_writer import WriteInterval
 import torch
 from tqdm.rich import tqdm
 import xgi
