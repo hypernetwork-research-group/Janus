@@ -67,17 +67,19 @@ def ddm(ctx: typer.Context,
     dataloader_config = ctx.obj['dataloader_config']
     datamodule_config = ctx.obj['datamodule_config']
     ckpt_path = ctx.obj['ckpt_path']
-    hypergraph = sample_ddm(
+    hypergraphs = sample_ddm(
         datamodule_config,
         huggingface_datasets_config,
         dataloader_config,
         walk_length,
         ckpt_path
     )
-    model_samples_path = samples_path / hypergraph['dataset_name'].split("/")[-1] / hypergraph['name']
-    makedirs(model_samples_path, exist_ok=True)
-    current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
-    makedirs(current_sample_path, exist_ok=True)
-    hif_dict = xgi.to_hif_dict(hypergraph)
-    with open(current_sample_path / "hypergraph.hif.json", "w") as f:
-        json.dump(hif_dict, f, indent=None, separators=(',', ":"))
+    dataset_name = huggingface_datasets_config.dataset_name.split("/")[-1]
+    for hypergraph in hypergraphs:
+        model_samples_path = samples_path / dataset_name / hypergraph['name']
+        makedirs(model_samples_path, exist_ok=True)
+        current_sample_path = model_samples_path / get_current_sample_path(model_samples_path)
+        makedirs(current_sample_path, exist_ok=True)
+        hif_dict = xgi.to_hif_dict(hypergraph)
+        with open(current_sample_path / "hypergraph.hif.json", "w") as f:
+            json.dump(hif_dict, f, indent=None, separators=(',', ":"))

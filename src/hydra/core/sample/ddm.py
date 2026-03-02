@@ -5,6 +5,7 @@ import lightning as L
 from tqdm.rich import tqdm
 import torch
 import xgi
+from datasets import load_dataset
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
 from hydra.core.models.modules import DiffusionTransformer
@@ -48,34 +49,44 @@ def sample_ddm(
         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
     )
 
-    hyperedges = set()
+    dataset = load_dataset(
+        huggingface_datasets_config.dataset_name,
+        cache_dir=huggingface_datasets_config.cache_dir,
+        split=datamodule_config.predict_split
+    )
 
-    while len(hyperedges) < 1512: # TODO: Use the real dataset number of hyperedges
-        predictions = trainer.predict(
-            model,
-            datamodule=datamodule,
-            ckpt_path=ckpt_path,
-        )
+    generated_hypergraphs = []
 
-        for incidence_matrices, *_ in tqdm(predictions):
-            for incidence_matrix in incidence_matrices:
-                for col in incidence_matrix.T:
-                    nodes = torch.nonzero(col).squeeze().tolist()
-                    if isinstance(nodes, int):
-                        nodes = [nodes]
-                    if len(nodes) < 1:
-                        continue
-                    nodes = tuple(sorted(nodes))
-                    hyperedges.add(nodes)
-        dist = [0] * 143
-        for he in hyperedges:
-            dist[len(he)] += 1
-        print(dist)
-    
-    hyperedges = list(hyperedges)
-    hypergraph = xgi.Hypergraph(hyperedges)
-    hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
-    hypergraph['name'] = model_name
-    hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
+    for d in dataset:
+        ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
+        logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
+        hyperedges = set()
+        while len(hyperedges) < len(ds_hypergraph.edges):
+            predictions = trainer.predict(
+                model,
+                datamodule=datamodule,
+                ckpt_path=ckpt_path,
+            )
 
-    return hypergraph
+            for incidence_matrices, *_ in tqdm(predictions):
+                for incidence_matrix in incidence_matrices:
+                    for col in incidence_matrix.T:
+                        nodes = torch.nonzero(col).squeeze().tolist()
+                        if isinstance(nodes, int):
+                            nodes = [nodes]
+                        if len(nodes) < 1:
+                            continue
+                        nodes = tuple(sorted(nodes))
+                        hyperedges.add(nodes)
+            
+            logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
+
+        hyperedges = list(hyperedges)
+        hypergraph = xgi.Hypergraph(hyperedges)
+        hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+        hypergraph['name'] = model_name
+        hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
+
+        generated_hypergraphs.append(hypergraph)
+
+    return generated_hypergraphs
