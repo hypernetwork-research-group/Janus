@@ -50,7 +50,7 @@ def sample_ddm(
 
     hyperedges = set()
 
-    while len(hyperedges) < 1512:
+    while len(hyperedges) < 1512: # TODO: Use the real dataset number of hyperedges
         predictions = trainer.predict(
             model,
             datamodule=datamodule,
