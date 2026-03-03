@@ -88,7 +88,7 @@ def transform(
                 )
 
                 touched_hyperedges = walk["touched_hyperedges"]
-                walk_incidence_matrix = incidence_matrix[touched_nodes][:, touched_hyperedges]
+                walk_incidence_matrix = incidence_matrix[touched_nodes][:, touched_hyperedges].tolist()
 
                 walk["touched_nodes"] = touched_nodes
                 walk["node_features"] = node_features[touched_nodes]
