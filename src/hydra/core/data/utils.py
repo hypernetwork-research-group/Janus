@@ -24,9 +24,8 @@ def metropolis_hastings_biased_random_walk(args):
                     previous = current
                     # current = current
                     # Add the node to the touched nodes if it's not already there
-                    if current not in walk:
-                        touched_nodes = members[current]
-                        walk_touched_nodes.update(touched_nodes)
+                    touched_nodes = members[current]
+                    walk_touched_nodes.update(touched_nodes)
                     walk.append(current) # Insert at the beginning
                     continue
                 cumulative_alphas = []
