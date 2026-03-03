@@ -1,3 +1,5 @@
+![JANUS logo](/assets/figures/janus-logo.png)
+
 This repository contains a Python package that provides the following code:
 
 - 🔥 PyTorch implementation of HyDRA $\beta\text{-VAE}$ and HyDRA DDM;
