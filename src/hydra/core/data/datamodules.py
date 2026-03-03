@@ -36,7 +36,7 @@ class FeaturesDataModule(L.LightningDataModule):
         self.cache_dir = cache_dir
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.num_workers = num_workers or cpu_count()
+        self.num_workers = num_workers if num_workers is not None else cpu_count()
         self.persistent_workers = persistent_workers
         self.pin_memory = pin_memory
         self.drop_last = drop_last
@@ -140,7 +140,7 @@ class HypergraphDataModule(L.LightningDataModule):
         self.samples_per_hyperedge = samples_per_hyperedge
         # DataLoaderConfig options
         self.pin_memory = pin_memory
-        self.num_workers = num_workers or cpu_count()
+        self.num_workers = num_workers if num_workers is not None else cpu_count()
         self.persistent_workers = persistent_workers
         self.batch_size = batch_size
         # HuggingFaceDatasetsConfig options
@@ -196,7 +196,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                                 p=self.p,
                                                 q=self.q,
                                                 alpha=self.alpha,
-                                                num_workers=self.num_workers),
+                                                num_workers=max(1, self.num_workers)),
                                             cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
                                             writer_batch_size=100)
                 for k, v in dataset.items()
@@ -237,7 +237,7 @@ class HypergraphDataModule(L.LightningDataModule):
     def setup(self, stage):
         # Drop edge_features_column
         self.dataset = load_from_disk(self.transformed_dataset_dir)
-        self.dataset.set_format(type='torch')
+        self.dataset = self.dataset.with_format("torch")
 
     def train_dataloader(self):
         dataset = self.dataset
@@ -245,10 +245,10 @@ class HypergraphDataModule(L.LightningDataModule):
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
                                            num_workers=self.num_workers,
-                                           persistent_workers=self.persistent_workers,
+                                           persistent_workers=self.persistent_workers and self.num_workers > 0,
                                            shuffle=True,
                                            drop_last=self.drop_last,
-                                           multiprocessing_context="spawn")
+                                           multiprocessing_context="spawn" if self.num_workers > 0 else None)
 
     def val_dataloader(self):
         dataset = self.dataset
@@ -256,10 +256,10 @@ class HypergraphDataModule(L.LightningDataModule):
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
                                            num_workers=self.num_workers,
-                                           persistent_workers=self.persistent_workers,
+                                           persistent_workers=self.persistent_workers and self.num_workers > 0,
                                            shuffle=False,
                                            drop_last=self.drop_last,
-                                           multiprocessing_context="spawn")
+                                           multiprocessing_context="spawn" if self.num_workers > 0 else None)
 
     def predict_dataloader(self):
         dataset = self.dataset
@@ -267,6 +267,6 @@ class HypergraphDataModule(L.LightningDataModule):
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
                                            num_workers=self.num_workers,
-                                           persistent_workers=self.persistent_workers,
+                                           persistent_workers=self.persistent_workers and self.num_workers > 0,
                                            shuffle=False,
-                                           multiprocessing_context="spawn")
+                                           multiprocessing_context="spawn" if self.num_workers > 0 else None)
