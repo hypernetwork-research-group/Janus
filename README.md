@@ -1,4 +1,6 @@
-![JANUS logo](/assets/figures/janus-logo.png)
+<picture>
+  <img src="assets/figures/janus-logo.png" loading="eager">
+<picture>
 
 This repository contains a Python package that provides the following code:
 
