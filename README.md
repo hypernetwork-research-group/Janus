@@ -108,8 +108,6 @@ We trained both models fixing the following hyperparameters.
 
 The learning rate is determined using a learning rate finder strategy.
 
-## Sampling
-
 ## Analysis
 
 ![Generated Hypergraph Evaluation Metrics](/assets/figures/generated-hypergraph-evaluation-metrics.png)
