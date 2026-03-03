@@ -36,7 +36,7 @@ class FeaturesDataModule(L.LightningDataModule):
         self.cache_dir = cache_dir
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.num_workers = num_workers if num_workers is not None else cpu_count()
+        self.num_workers = num_workers if num_workers is not None else cpu_count() - 1
         self.persistent_workers = persistent_workers
         self.pin_memory = pin_memory
         self.drop_last = drop_last
