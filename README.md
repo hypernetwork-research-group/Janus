@@ -1,5 +1,5 @@
 <picture>
-  <img src="assets/figures/janus-logo.png" loading="eager">
+  <img alt="JANUS Logo" src="assets/figures/janus-logo.png">
 <picture>
 
 This repository contains a Python package that provides the following code:
