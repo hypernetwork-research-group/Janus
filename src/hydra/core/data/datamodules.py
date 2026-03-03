@@ -156,7 +156,7 @@ class HypergraphDataModule(L.LightningDataModule):
         # The validation size is only relevant if train_split == val_split, in which case we need to split the training set into a training and validation set
         # If it is >= 1, we interpret it as an absolute number of examples, if it is < 1, we interpret it as a proportion of the dataset
         # If it is None, we set it to 0.1 by default
-        self.val_size = 0.1 if not val_size else int(val_size) if val_size >= 1 else val_size
+        self.val_size = 0.1 if val_size == None else int(val_size) if val_size >= 1 else val_size
 
         # Additional
         self.dataset_dir = data_dir / dataset_name
@@ -184,7 +184,7 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
-            dataset.save_to_disk(self.processed_dataset_dir)
+            dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
 
         try:
             # Here, we build a set of random walks for each hypergraph,
@@ -230,16 +230,14 @@ class HypergraphDataModule(L.LightningDataModule):
                 "predict": dataset[self.predict_split],
             })
 
-        # Set the format to PyTorch tensors, this will allow us to directly get PyTorch tensors when we access the elements of the dataset
-        dataset.set_format(type='torch')
-
         # Similarly to the processed dataset, we save the transformed dataset to disk
         if not self.transformed_dataset_dir.exists():
-            dataset.save_to_disk(self.transformed_dataset_dir)
+            dataset.save_to_disk(self.transformed_dataset_dir, max_shard_size="1GB")
 
     def setup(self, stage):
         # Drop edge_features_column
         self.dataset = load_from_disk(self.transformed_dataset_dir)
+        self.dataset.set_format(type='torch')
 
     def train_dataloader(self):
         dataset = self.dataset
@@ -249,7 +247,8 @@ class HypergraphDataModule(L.LightningDataModule):
                                            num_workers=self.num_workers,
                                            persistent_workers=self.persistent_workers,
                                            shuffle=True,
-                                           drop_last=self.drop_last)
+                                           drop_last=self.drop_last,
+                                           multiprocessing_context="spawn")
 
     def val_dataloader(self):
         dataset = self.dataset
@@ -259,7 +258,8 @@ class HypergraphDataModule(L.LightningDataModule):
                                            num_workers=self.num_workers,
                                            persistent_workers=self.persistent_workers,
                                            shuffle=False,
-                                           drop_last=self.drop_last)
+                                           drop_last=self.drop_last,
+                                           multiprocessing_context="spawn")
 
     def predict_dataloader(self):
         dataset = self.dataset
@@ -268,4 +268,5 @@ class HypergraphDataModule(L.LightningDataModule):
                                            pin_memory=self.pin_memory,
                                            num_workers=self.num_workers,
                                            persistent_workers=self.persistent_workers,
-                                           shuffle=False)
+                                           shuffle=False,
+                                           multiprocessing_context="spawn")

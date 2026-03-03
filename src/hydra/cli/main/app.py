@@ -2,9 +2,6 @@ from typing import Literal, Annotated, Optional
 import typer
 import logging
 from pathlib import Path
-import resource
-
-import psutil
 
 import rich.logging
 
