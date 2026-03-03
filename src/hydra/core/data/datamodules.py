@@ -6,7 +6,7 @@ import traceback
 
 import torch
 import lightning as L
-from datasets import load_dataset, load_from_disk, Dataset, DatasetDict
+from datasets import load_dataset, load_from_disk, Dataset, DatasetDict, Features, Array2D, List, Value
 
 from .transforms import add_random_noise, transform, process
 
@@ -198,7 +198,14 @@ class HypergraphDataModule(L.LightningDataModule):
                                                 alpha=self.alpha,
                                                 num_workers=max(1, self.num_workers)),
                                             cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
-                                            writer_batch_size=100)
+                                            writer_batch_size=100,
+                                            features=Features({
+                                                "touched_nodes": List(Value(dtype="int64")),
+                                                "touched_hyperedges": List(Value(dtype="int64"), length=self.walk_length),
+                                                "node_features": Array2D(dtype="float32", shape=(None, 128)),
+                                                "hyperedge_features": Array2D(dtype="float32", shape=(None, 128)),
+                                                "incidence_matrix": Array2D(dtype="float32", shape=(None, self.walk_length)),
+                                            }))
                 for k, v in dataset.items()
             })
         except Exception as e:

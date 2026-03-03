@@ -1,3 +1,5 @@
+import pyarrow
+
 from typing import Literal, Annotated, Optional
 import typer
 import logging
