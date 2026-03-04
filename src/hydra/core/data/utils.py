@@ -7,6 +7,8 @@ import xgi
 def metropolis_hastings_biased_random_walk(args):
     # TODO: Generalize random walk to k-th order
     G, num_paths, walk_length, p, q, a, seed, sources, neighborhoods, members = args
+    assert p > 0, "p must be positive"
+    assert q > 0, "q must be positive"
     walks = []
     rng = random.Random(seed)
     inv_p = 1 / p
@@ -17,15 +19,12 @@ def metropolis_hastings_biased_random_walk(args):
             walk = [source]
             previous = None
             current = source
+            touched_nodes = members[current]
+            walk_touched_nodes.update(touched_nodes)
             for _ in range(walk_length - 1):
                 neighbors = neighborhoods[current]
                 if not neighbors:
                     # Keep looping
-                    previous = current
-                    # current = current
-                    # Add the node to the touched nodes if it's not already there
-                    touched_nodes = members[current]
-                    walk_touched_nodes.update(touched_nodes)
                     walk.append(current) # Insert at the beginning
                     continue
                 cumulative_alphas = []
@@ -48,6 +47,7 @@ def metropolis_hastings_biased_random_walk(args):
                 if a == 0.0:
                     accept = True
                 else:
+                    # If a node has degree 0 we are accepting it directly because it has no neighbors
                     acceptance_prob = min(1, (G.degree[current] / G.degree[next_node]) ** a)
                     accept = rng.random() < acceptance_prob
                 if accept:
@@ -58,7 +58,7 @@ def metropolis_hastings_biased_random_walk(args):
                     walk_touched_nodes.update(touched_nodes)
                 walk.append(current) # Insert at the beginning
             walks.append({
-                "touched_hyperedges": sorted(walk),
+                "touched_hyperedges": sorted(walk), # This sorted is not strictly necessary but it makes it easier to compare walks and debug
                 "touched_nodes": sorted(list(walk_touched_nodes))
             })
     return walks
