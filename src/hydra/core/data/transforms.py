@@ -90,8 +90,8 @@ def transform(
 
             with tqdm(total=len(parallel_args), desc="Random Walks") as pbar:
 
-                for i in range(0, len(parallel_args), num_workers * 2):
-                    sub_parallel_args = parallel_args[i : i + num_workers * 2]
+                for i in range(0, len(parallel_args), num_workers):
+                    sub_parallel_args = parallel_args[i : i + num_workers]
                     # Stream walks as each worker returns its chunk (still using ProcessPoolExecutor + map)
                     with ProcessPoolExecutor(
                         max_workers=num_workers,
