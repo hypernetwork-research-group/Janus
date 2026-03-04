@@ -57,6 +57,7 @@ def transform(
             sources = list(linegraph.nodes)
             neighborhoods = {n: list(linegraph.neighbors(n)) for n in linegraph.nodes}
             members = ridx_hypergraph.edges.members(dtype=dict)  # edge_id -> members :contentReference[oaicite:3]{index=3}
+            degrees = dict(linegraph.degree())
 
             # Chunk sources so each task returns a list of walks for that chunk
             parallel_args = [
@@ -71,6 +72,7 @@ def transform(
                     sources[i : i + 10],
                     neighborhoods,
                     members,
+                    degrees
                 )
                 for chunk_idx, i in enumerate(range(0, len(sources), 10))
             ]
