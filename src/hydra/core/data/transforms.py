@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 import torch
 import xgi
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -40,26 +44,31 @@ def transform(
     seed: int = 42,
 ):
     def _transform():
+        logger.info("Starting transformation")
         for hypergraph_entry in dataset:
             ridx_hif_dict = hypergraph_entry["hif_dict"]
             node_features = torch.tensor(hypergraph_entry["node_features"], dtype=torch.float)
             hyperedge_features = torch.tensor(hypergraph_entry["hyperedge_features"], dtype=torch.float)
 
-            # Reconstruct hypergraph
-            ridx_hypergraph = xgi.convert.from_hif_dict(ridx_hif_dict, nodetype=int)
+            # Reconstruct the reindexed hypergraph
+            ridx_hypergraph = xgi.convert.from_hif_dict(ridx_hif_dict, nodetype=int, edgetype=int)
+            num_nodes = ridx_hypergraph.num_nodes
 
-            # Incidence matrix (avoid .tolist(); keep it numpy -> torch)
             inc_np = xgi.convert.to_incidence_matrix(ridx_hypergraph, sparse=False)
             incidence_matrix = torch.from_numpy(np.asarray(inc_np, dtype=np.float32))
 
-            # Line graph + helpers
+            # Sample random walks from the hypergraph
+            logger.info("Computing line graph")
             linegraph = xgi.convert.to_line_graph(ridx_hypergraph)
             sources = list(linegraph.nodes)
-            neighborhoods = {n: list(linegraph.neighbors(n)) for n in linegraph.nodes}
-            members = ridx_hypergraph.edges.members(dtype=dict)  # edge_id -> members :contentReference[oaicite:3]{index=3}
+            logger.info("Precomputing neighborhoods")
+            neighborhoods = {node: list(linegraph.neighbors(node)) for node in linegraph.nodes}
+            logger.info("Precomputing members")
+            members = ridx_hypergraph.edges.members()
+            logger.info("Precomputing degrees")
             degrees = dict(linegraph.degree())
 
-            # Chunk sources so each task returns a list of walks for that chunk
+            logger.info("Computing parallel args for random walks")
             parallel_args = [
                 (
                     linegraph,
@@ -68,50 +77,49 @@ def transform(
                     p,
                     q,
                     alpha,
-                    seed + chunk_idx,                 # (optional) avoid identical RNG streams per chunk
+                    seed,
                     sources[i : i + 10],
                     neighborhoods,
                     members,
                     degrees
                 )
-                for chunk_idx, i in enumerate(range(0, len(sources), 10))
+                for i in range(0, len(sources), 10)
             ]
 
-            num_nodes = ridx_hypergraph.num_nodes
+            logger.info("Starting parallel random walks")
 
-            def _emit_walk(walk):
-                # Streaming-friendly target: per-walk (no need for global max)
-                touched_count = len(walk["touched_nodes"])
-                target_num_nodes = int(touched_count + (num_nodes - touched_count) * target_lambda)
-                target_num_nodes = max(touched_count, min(num_nodes, target_num_nodes))
+            with tqdm(total=len(parallel_args), desc="Random Walks") as pbar:
 
-                touched_nodes, walk["nodes_mask"] = patch_nodes(
-                    ridx_hypergraph, walk["touched_nodes"], target_num_nodes
-                )
+                for i in range(0, len(parallel_args), num_workers * 2):
+                    sub_parallel_args = parallel_args[i : i + num_workers * 2]
+                    # Stream walks as each worker returns its chunk (still using ProcessPoolExecutor + map)
+                    with ProcessPoolExecutor(
+                        max_workers=num_workers,
+                    ) as executor:
+                        for result in executor.map(metropolis_hastings_biased_random_walk, sub_parallel_args):
+                            # `result` is the list of walks produced for this chunk
+                            for walk in result:
+                                # Compute target_num_nodes per-walk (instead of globally)
+                                touched_nodes_raw = walk["touched_nodes"]
+                                touched_hyperedges = walk["touched_hyperedges"]
 
-                touched_hyperedges = walk["touched_hyperedges"]
-                walk_incidence_matrix = incidence_matrix[touched_nodes][:, touched_hyperedges].tolist()
+                                target_num_nodes = int(
+                                    len(touched_nodes_raw)
+                                    + (num_nodes - len(touched_nodes_raw)) * target_lambda
+                                )
 
-                walk["touched_nodes"] = touched_nodes
-                walk["node_features"] = node_features[touched_nodes]
-                walk["hyperedge_features"] = hyperedge_features[touched_hyperedges]
-                walk["incidence_matrix"] = walk_incidence_matrix
+                                touched_nodes, walk["nodes_mask"] = patch_nodes(
+                                    ridx_hypergraph, touched_nodes_raw, target_num_nodes
+                                )
 
-                return walk
+                                walk_incidence_matrix = incidence_matrix[touched_nodes][:, touched_hyperedges].tolist()
 
-            if num_workers == 1:
-                for args in tqdm(parallel_args, total=len(parallel_args)):
-                    for walk in metropolis_hastings_biased_random_walk(args):
-                        yield _emit_walk(walk)
-            else:
-                with ProcessPoolExecutor(max_workers=num_workers) as executor:
-                    futures = [executor.submit(metropolis_hastings_biased_random_walk, args) for args in parallel_args]
+                                walk["node_features"] = node_features[touched_nodes].tolist()
+                                walk["hyperedge_features"] = hyperedge_features[touched_hyperedges].tolist()
+                                walk["incidence_matrix"] = walk_incidence_matrix
 
-                    # as_completed yields futures as soon as each finishes :contentReference[oaicite:4]{index=4}
-                    for fut in tqdm(as_completed(futures), total=len(futures)):
-                        chunk_paths = fut.result()
-                        for walk in chunk_paths:
-                            yield _emit_walk(walk)
+                                yield walk
+                            pbar.update(1)
     return _transform
 
 def add_random_noise(dataset, walk_length):
