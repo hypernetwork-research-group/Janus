@@ -6,7 +6,7 @@ import xgi
 
 def metropolis_hastings_biased_random_walk(args):
     # TODO: Generalize random walk to k-th order
-    G, num_paths, walk_length, p, q, a, seed, sources, neighborhoods, members = args
+    G, num_paths, walk_length, p, q, a, seed, sources, neighborhoods, members, weights = args
     assert p > 0, "p must be positive"
     assert q > 0, "q must be positive"
     walks = []
@@ -48,7 +48,7 @@ def metropolis_hastings_biased_random_walk(args):
                     accept = True
                 else:
                     # If a node has degree 0 we are accepting it directly because it has no neighbors
-                    acceptance_prob = min(1, (G.degree[current] / G.degree[next_node]) ** a)
+                    acceptance_prob = min(1, (weights[current] / weights[next_node]) ** a)
                     accept = rng.random() < acceptance_prob
                 if accept:
                     previous = current
