@@ -140,7 +140,7 @@ class HypergraphDataModule(L.LightningDataModule):
         self.samples_per_hyperedge = samples_per_hyperedge
         # DataLoaderConfig options
         self.pin_memory = pin_memory
-        self.num_workers = num_workers if num_workers is not None else cpu_count()
+        self.num_workers = num_workers if num_workers is not None else cpu_count() -1 # Set num_workers to the number of available CPU cores minus one, to avoid overloading the system
         self.persistent_workers = persistent_workers
         self.batch_size = batch_size
         # HuggingFaceDatasetsConfig options
@@ -186,33 +186,28 @@ class HypergraphDataModule(L.LightningDataModule):
         if not self.processed_dataset_dir.exists():
             dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
 
-        try:
-            # Here, we build a set of random walks for each hypergraph,
-            # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
-            dataset = DatasetDict({
-                k: Dataset.from_generator(transform(v,
-                                                samples_per_hyperedge=self.samples_per_hyperedge,
-                                                walk_length=self.walk_length,
-                                                p=self.p,
-                                                q=self.q,
-                                                alpha=self.alpha,
-                                                num_workers=max(1, self.num_workers)),
-                                            cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
-                                            writer_batch_size=100,
-                                            features=Features({
-                                                "touched_nodes": List(Value(dtype="int64")),
-                                                "touched_hyperedges": List(Value(dtype="int64"), length=self.walk_length),
-                                                "node_features": Array2D(dtype="float32", shape=(None, 128)),
-                                                "hyperedge_features": Array2D(dtype="float32", shape=(None, 128)),
-                                                "incidence_matrix": Array2D(dtype="float32", shape=(None, self.walk_length)),
-                                            }))
-                for k, v in dataset.items()
-            })
-        except Exception as e:
-            logger.error(f"Error during transformation: {e}")
-            logger.error(traceback.format_exc())
-            print("CAUSE:", repr(getattr(e, "__cause__", None)))
-            raise e
+        # Here, we build a set of random walks for each hypergraph,
+        # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
+        dataset = DatasetDict({
+            k: Dataset.from_generator(transform(v,
+                                            samples_per_hyperedge=self.samples_per_hyperedge,
+                                            walk_length=self.walk_length,
+                                            p=self.p,
+                                            q=self.q,
+                                            alpha=self.alpha,
+                                            num_workers=max(1, self.num_workers)),
+                                        cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
+                                        writer_batch_size=50,
+                                        keep_in_memory=False,
+                                        features=Features({
+                                            "touched_nodes": List(Value(dtype="int64")),
+                                            "touched_hyperedges": List(Value(dtype="int64"), length=self.walk_length),
+                                            "node_features": Array2D(dtype="float32", shape=(None, 128)),
+                                            "hyperedge_features": Array2D(dtype="float32", shape=(None, 128)),
+                                            "incidence_matrix": Array2D(dtype="float32", shape=(None, self.walk_length)),
+                                        }))
+            for k, v in dataset.items()
+        })
 
         # TODO: Adjust train, validation split logic
         # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
