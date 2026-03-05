@@ -201,6 +201,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                         keep_in_memory=False,
                                         features=Features({
                                             "touched_nodes": List(Value(dtype="int64")),
+                                            "nodes_mask": List(Value(dtype="int64")),
                                             "touched_hyperedges": List(Value(dtype="int64"), length=self.walk_length),
                                             "node_features": Array2D(dtype="float32", shape=(None, 128)),
                                             "hyperedge_features": Array2D(dtype="float32", shape=(None, 128)),
