@@ -21,6 +21,7 @@ def analyze(
     exclude_metrics: Annotated[list[str], typer.Option("--exclude-metric", "-e", help="List of metrics to exclude from the analysis.")] = [],
     force_metrics: Annotated[list[str], typer.Option("--force-metric", "-f", help="List of metrics to force recompute in the analysis.")] = [],
 ):
+    include_metrics.extend(force_metrics)
     for path, hypergraph in tqdm(hif_discovery(root_dir)):
         results_path = path.with_suffix(".results.json")
         results = dict()
@@ -51,6 +52,7 @@ def compare(
         if results['name'] != split:
             continue
         references[dataset_name] = results
+    include_metrics.extend(force_metrics)
     for path, results in tqdm(results_discovery(root_dir)):
         dataset_name = results['dataset_name']
         reference = references[dataset_name]
