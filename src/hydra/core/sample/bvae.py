@@ -69,6 +69,6 @@ def sample_bvae(
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
     hypergraph['name'] = model_name
-    hypergraph['kind'] = "unconditional" if model.vertex_encoding else "conditional"
-
+    hypergraph['kind'] = "reconstruction"
+    
     return hypergraph
