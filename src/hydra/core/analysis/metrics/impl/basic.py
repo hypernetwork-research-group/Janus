@@ -101,6 +101,17 @@ class LineGraphNumberOfEdges(Metric):
         return abs(a - b)
 
 @register_metric()
+class HypergraphDegreeAssortativity(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        xgi_hypergraph = hg.xgi_hypergraph
+        degree_assortativity = xgi.degree_assortativity(xgi_hypergraph)
+        return degree_assortativity
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
 class CliqueExpansionModularity(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
@@ -214,3 +225,34 @@ class NormalizedMutualInformation(Metric):
         val_b = val_b + [-1] * (max_length - len(val_b))
         nmi = normalized_mutual_info_score(val_a, val_b)
         return nmi
+
+@register_metric()
+class HyperedgeRecovery(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        if hg['kind'] not in ['conditional', 'reconstruction', 'reference']:
+            return []
+        xgi_hypergraph = hg.xgi_hypergraph
+        hyperedges = list(map(list, map(sorted, xgi_hypergraph.edges.members())))
+        return hyperedges
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        set_a = set(tuple(sorted(edge)) for edge in a)
+        set_b = set(tuple(sorted(edge)) for edge in b)
+        intersection = set_a.intersection(set_b)
+        union = set_a.union(set_b)
+        jaccard_similarity = len(intersection) / len(union) if union else 1.0
+        return {
+            "jaccard_similarity": jaccard_similarity,
+            "intersection": list(intersection),
+            "union": list(union),
+            "card_a": list(set_a),
+            "card_b": list(set_b),
+        }
+
+# from hydra.core.models.components import HGAT
+
+# class GeneratedHypergraphDetection(Metric):
+
+#     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+#         hypergraph_detector = HGAT(128, 64, 1)

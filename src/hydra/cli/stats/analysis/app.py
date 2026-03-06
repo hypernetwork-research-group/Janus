@@ -32,7 +32,7 @@ def analyze(
         results.update(quantitative_analysis(hypergraph,
                                      include_metrics=include_metrics,
                                      exclude_metrics=[metric for metric in list(results.keys()) + exclude_metrics if metric not in force_metrics]))
-        if set(results.keys()) != original_keys:
+        if set(results.keys()) != original_keys or force_metrics:
             with open(results_path, "w") as f:
                 json.dump(results, f, indent=None, sort_keys=True, separators=(",", ":"))
 
@@ -54,6 +54,7 @@ def compare(
         references[dataset_name] = results
     include_metrics.extend(force_metrics)
     for path, results in tqdm(results_discovery(root_dir)):
+        print(path)
         dataset_name = results['dataset_name']
         reference = references[dataset_name]
         comparison_path = path.with_suffix(".comparison.json")
