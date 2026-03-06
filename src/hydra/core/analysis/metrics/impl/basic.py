@@ -244,10 +244,10 @@ class HyperedgeRecovery(Metric):
         jaccard_similarity = len(intersection) / len(union) if union else 1.0
         return {
             "jaccard_similarity": jaccard_similarity,
-            "intersection": list(intersection),
-            "union": list(union),
-            "card_a": list(set_a),
-            "card_b": list(set_b),
+            "intersection": len(intersection),
+            "union": len(union),
+            "card_a": len(set_a),
+            "card_b": len(set_b),
         }
 
 # from hydra.core.models.components import HGAT
