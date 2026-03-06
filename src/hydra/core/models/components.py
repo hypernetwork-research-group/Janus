@@ -244,7 +244,7 @@ class HGAT(nn.Module):
                  in_channels: int,
                  hidden_channels: int,
                  out_channels: int,
-                 num_layers: int,
+                 num_layers: int = 1,
                  heads: int = 4):
         super(HGAT, self).__init__()
         self.input_norm = nn.LayerNorm(in_channels, elementwise_affine=True)
