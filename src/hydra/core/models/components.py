@@ -441,3 +441,80 @@ class DiT(nn.Module):
         if self.cross_attention:
             return x, y
         return x
+
+class StructureOnlyHypergraphConv(nn.Module):
+    """
+    Hypergraph convolution without node/hyperedge input features.
+
+    Input:
+        H: dense incidence matrix of shape [B, N, M]
+           H[b, i, e] = 1 if node i belongs to hyperedge e, else 0
+           (can also be soft / weighted incidence values)
+
+    Output:
+        node_embeddings: [B, N, out_dim]
+    """
+
+    def __init__(self, out_dim: int, hidden_dim: int = 1, num_steps: int = 1, num_heads: int = 1, eps: float = 1e-8):
+        super().__init__()
+        self.out_dim = out_dim
+        self.hidden_dim = hidden_dim
+        self.num_steps = num_steps
+        self.num_heads = num_heads
+        self.eps = eps
+
+        # Final projection into desired dimensional space
+        self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=self.num_heads, batch_first=True)
+        self.proj = nn.Linear(hidden_dim, out_dim)
+
+    def forward(self, H: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            H: [B, N, M] dense incidence matrix
+
+        Returns:
+            X: [B, N, out_dim]
+        """
+        B, N, M = H.shape
+        device = H.device
+        dtype = H.dtype
+
+        # Node degrees: [B, N]
+        dv = H.sum(dim=2)  # sum over hyperedges
+
+        # Hyperedge degrees: [B, M]
+        de = H.sum(dim=1)  # sum over nodes
+
+        # Inverse degree factors
+        dv_inv_sqrt = (dv + self.eps).pow(-0.5)   # [B, N]
+        de_inv = (de + self.eps).pow(-1.0)        # [B, M]
+
+        # Initial node feature from structure only.
+        # Option 1: constant scalar per node
+        X = torch.ones(B, N, self.hidden_dim, device=device, dtype=dtype)
+
+        # You could also use node degree as initialization instead:
+        # X = dv.unsqueeze(-1).repeat(1, 1, self.hidden_dim)
+
+        for _ in range(self.num_steps):
+            # Dv^{-1/2} X
+            X_norm = dv_inv_sqrt.unsqueeze(-1) * X                      # [B, N, hidden_dim]
+
+            # H^T Dv^{-1/2} X
+            E = torch.bmm(H.transpose(1, 2), X_norm)                    # [B, M, hidden_dim]
+
+            # De^{-1} H^T Dv^{-1/2} X
+            E = de_inv.unsqueeze(-1) * E                                # [B, M, hidden_dim]
+
+            # H De^{-1} H^T Dv^{-1/2} X
+            X = torch.bmm(H, E)                                         # [B, N, hidden_dim]
+
+            # Dv^{-1/2} H De^{-1} H^T Dv^{-1/2} X
+            X = dv_inv_sqrt.unsqueeze(-1) * X                           # [B, N, hidden_dim]
+
+        X, _ = self.attention(X, X, X)  # [B, N, hidden_dim]
+
+        # X = self.layer_norm(X)                                          # [B, N, hidden_dim]
+        # Linear projection to desired output dimension
+        X = self.proj(X)                                                # [B, N, out_dim]
+        return X
