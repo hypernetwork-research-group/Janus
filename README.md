@@ -232,3 +232,52 @@ In order to work, an hypergraph dataset must be stored in a `.jsonl` file, where
 ```
 
 In order to provide nodes and edges features, these must be set in the `attrs` dictionary of each node/edge.
+
+# Experiments Summary
+
+<table>
+  <thead>
+    <tr>
+      <td>Model/Dataset</td>
+      <td>email-Enron</td>
+      <td>email-Eu</td>
+      <td>NDC-classes</td>
+      <td>contact-high-school</td>
+      <td>contact-primary-school</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BVAE</td>
+      <td><input type="checkbox" checked disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+    </tr>
+    <tr>
+      <td>DDM</td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+    </tr>
+    <tr>
+      <td>BVAE-V</td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+    </tr>
+    <tr>
+      <td>DDM-V</td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+      <td><input type="checkbox" disabled></td>
+    </tr>
+  </tbody>
+</table>
