@@ -249,35 +249,35 @@ In order to provide nodes and edges features, these must be set in the `attrs` d
   <tbody>
     <tr>
       <td>BVAE</td>
-      <td><input type="checkbox" checked disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
+      <td>X</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
     </tr>
     <tr>
       <td>DDM</td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
     </tr>
     <tr>
       <td>BVAE-V</td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
     </tr>
     <tr>
       <td>DDM-V</td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
-      <td><input type="checkbox" disabled></td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
     </tr>
   </tbody>
 </table>
