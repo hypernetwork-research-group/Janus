@@ -123,6 +123,7 @@ def transform(
                 dtype=torch.long
             )
 
+            logger.info("Reordering incidence matrix to match feature order")
             # Reorder incidence matrix to match the order of node and edge features
             incidence_matrix = incidence_matrix[row_perm][:, col_perm]
 
