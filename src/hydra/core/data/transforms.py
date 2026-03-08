@@ -109,8 +109,22 @@ def transform(
             num_nodes = ridx_hypergraph.num_nodes
 
             logger.info("Computing incidence matrix")
-            inc_np = xgi.convert.to_incidence_matrix(ridx_hypergraph, sparse=False)
+            inc_np, nodeidx, edgeidx = xgi.convert.to_incidence_matrix(ridx_hypergraph, sparse=False, index=True)
             incidence_matrix = torch.from_numpy(np.asarray(inc_np, dtype=np.float32))
+            # Here, the incidence matrix indices may not be in the same order as the node and edge features
+
+            # Permutations that sort rows/cols by the real IDs
+            row_perm = torch.tensor(
+                sorted(nodeidx.keys(), key=lambda k: nodeidx[k]),
+                dtype=torch.long
+            )
+            col_perm = torch.tensor(
+                sorted(edgeidx.keys(), key=lambda k: edgeidx[k]),
+                dtype=torch.long
+            )
+
+            # Reorder incidence matrix to match the order of node and edge features
+            incidence_matrix = incidence_matrix[row_perm][:, col_perm]
 
             logger.info("Computing line graph")
             linegraph = xgi.to_line_graph(ridx_hypergraph)
