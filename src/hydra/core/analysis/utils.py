@@ -6,6 +6,9 @@ import json
 
 import xgi
 import hypernetx as hnx
+import networkx as nx
+import numpy as np
+import torch
 
 def file_discovery(
         path: Path | str,
@@ -52,6 +55,31 @@ class HypergraphLazyParser:
         # Also make the default weight float for any edges that get inserted later
         ps.set_defaults({"weight": 1.0})
         return hypernetx_hypergraph
+
+    @cache
+    def to_incidence_matrix(self):
+        inc_np, nodeidx, edgeidx = xgi.incidence_matrix(self.xgi_hypergraph, sparse=False, index=True)
+        incidence_matrix = torch.from_numpy(np.asarray(inc_np, dtype=np.float32))
+        # Here, the incidence matrix indices may not be in the same order as the node and edge features
+        # Permutations that sort rows/cols by the real IDs
+        row_perm = torch.tensor(
+            sorted(nodeidx.keys(), key=lambda k: nodeidx[k]),
+            dtype=torch.long
+        )
+        col_perm = torch.tensor(
+            sorted(edgeidx.keys(), key=lambda k: edgeidx[k]),
+            dtype=torch.long
+        )
+        # Reorder incidence matrix to match the order of node and edge features
+        incidence_matrix = incidence_matrix[row_perm][:, col_perm]
+        return incidence_matrix
+
+    def generate_random_paths(self, path_length: int, batch_size: int = 32):
+        assert path_length >= 2, "Path length must be at least 2 to generate paths in the line graph."
+        line_graph = self.to_line_graph()
+        random_paths = list(nx.generate_random_paths(line_graph, batch_size, path_length - 1))
+        incidence_matrix = self.to_incidence_matrix()
+        return incidence_matrix[:, random_paths].permute(1, 0, 2).contiguous()
 
     def __str__(self):
         return f"{self.__class__.__name__}({str(self.xgi_hypergraph)})"
