@@ -251,8 +251,8 @@ In order to provide nodes and edges features, these must be set in the `attrs` d
       <td>BVAE</td>
       <td>X</td>
       <td>-</td>
-      <td>-</td>
-      <td>-</td>
+      <td>X</td>
+      <td>X</td>
       <td>-</td>
     </tr>
     <tr>
