@@ -508,7 +508,8 @@ class DiffusionTransformer(L.LightningModule):
 
     def sample(self, num_nodes: int, num_hyperedges: int, walk_length: int, batch_size: int):
         assert self.bvae.vertex_encoding, "Sampling is only supported when vertex encoding is enabled."
-        pass
+        with tqdm(total=num_hyperedges, desc="Sampling hyperedges", leave=False) as pbar:
+            pass
 
     def sample_conditional(self, node_features: torch.Tensor, num_hyperedges: int, walk_length: int, batch_size: int):
         assert not self.bvae.vertex_encoding, "Conditional sampling is only supported when vertex encoding is disabled."
