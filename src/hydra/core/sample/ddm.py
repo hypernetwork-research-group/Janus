@@ -67,9 +67,8 @@ def sample_ddm(
         while len(hyperedges) < len(ds_hypergraph.edges):
             predictions = []
             for batch in datamodule.predict_dataloader():
-                print(batch.keys())
                 batch = {key: value.to(model.device) for key, value in batch.items()}
-                incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T = model.predict_step(batch, 0)
+                incidence_matrices, *_ = model.predict_step(batch, 0)
                 predictions.append(incidence_matrices.cpu())
 
             for incidence_matrices in tqdm(predictions):
