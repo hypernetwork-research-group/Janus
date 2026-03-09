@@ -21,10 +21,17 @@ def sample_ddm(
     huggingface_datasets_config: HuggingFaceDatasetsConfig,
     dataloader_config: DataLoaderConfig,
     walk_length: int,
-    ckpt_path: Path,
+    ckpt_path: Path | None = None,
+    pl_module: DiffusionTransformer | None = None,
 ) -> xgi.Hypergraph:
+    
+    assert ckpt_path is not None or pl_module is not None, "Either ckpt_path or pl_module must be provided"
+    assert not (ckpt_path is not None and pl_module is not None), "Only one of ckpt_path or pl_module can be provided"
 
-    model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
+    if ckpt_path is not None:
+        model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
+    else:
+        model = pl_module
 
     model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
 

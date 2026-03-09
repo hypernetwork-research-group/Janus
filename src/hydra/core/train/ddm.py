@@ -7,6 +7,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from hydra.core.models.modules import DiffusionTransformer, HypergraphBetaVAE
 from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
 from hydra.core.data.datamodules import HypergraphDataModule
+from .callbacks import DDMSampleEvaluationCallback
 
 def train_ddm(
     random_walk_config: RandomWalkConfig,
@@ -80,7 +81,14 @@ def train_ddm(
             )  if optimizer_config.learning_rate is None else LambdaCallback(),
             RichProgressBar(
                 refresh_rate=1,
-            )
+            ),
+            DDMSampleEvaluationCallback(
+                dataloader_config=dataloader_config,
+                datamodule_config=datamodule_config,
+                huggingface_datasets_config=huggingface_datasets_config,
+                sample_every_n_steps=10_000,
+                walk_length=random_walk_config.walk_length,
+            ),
         ],
     )
 
