@@ -505,3 +505,9 @@ class DiffusionTransformer(L.LightningModule):
         membership_mask = incidence_matrices.sum(dim=2).bool() # [B, num_nodes]
 
         return incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T
+
+    def sample(self, num_nodes: int, walk_length: int, batch_size: int):
+        pass
+
+    def sample_conditional(self, walk_length: int, batch_size: int):
+        pass
