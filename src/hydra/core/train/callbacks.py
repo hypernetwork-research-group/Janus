@@ -88,7 +88,10 @@ class DDMSampleEvaluationCallback(Callback):
                         comparison = {f"comparison/{k}": v for k, v in comparison.items()}
 
                         if logger is not None:
-                            logger.log_metrics(comparison)
+                            logger.log_metrics(
+                                comparison,
+                                step=global_step,
+                            )
         finally:
             ema_cb._swap_models(pl_module)
 

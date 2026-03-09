@@ -507,7 +507,9 @@ class DiffusionTransformer(L.LightningModule):
         return incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T
 
     def sample(self, num_nodes: int, walk_length: int, batch_size: int):
+        assert self.bvae.vertex_encoding, "Sampling is only supported when vertex encoding is enabled."
         pass
 
-    def sample_conditional(self, walk_length: int, batch_size: int):
+    def sample_conditional(self, node_features: torch.Tensor, walk_length: int, batch_size: int):
+        assert not self.bvae.vertex_encoding, "Conditional sampling is only supported when vertex encoding is disabled."
         pass
