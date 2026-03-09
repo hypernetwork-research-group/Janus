@@ -66,15 +66,17 @@ class FeaturesDataModule(L.LightningDataModule):
                          fn_kwargs={
                              "node_feature": self.node_feature,
                              "hyperedge_feature": self.hyperedge_feature,
+                             "add_hif_dict": False
                          })
 
-        dataset.set_format(type='torch')
+        # Remove 'hif_dict' column
+        dataset = dataset.map(lambda x: {key: value for key, value in x.items() if key != "hif_dict"})
 
         if not self.node_features_dataset_dir.exists():
             dataset.save_to_disk(self.node_features_dataset_dir)
     
     def setup(self, stage):
-        self.dataset = load_from_disk(self.node_features_dataset_dir)
+        self.dataset = load_from_disk(self.node_features_dataset_dir).with_format("torch")
 
     def train_dataloader(self):
         dataset = self.dataset

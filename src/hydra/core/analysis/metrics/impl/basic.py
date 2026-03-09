@@ -250,9 +250,15 @@ class HyperedgeRecovery(Metric):
             "card_b": len(set_b),
         }
 
-# from hydra.core.models.components import HGAT
+from hydra.core.models.components import StructureOnlyHypergraphRegressor
 
-# class GeneratedHypergraphDetection(Metric):
+class GeneratedHypergraphDetection(Metric):
 
-#     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-#         hypergraph_detector = HGAT(128, 64, 1)
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        hypergraph_detector = StructureOnlyHypergraphRegressor(
+            out_channels=16,
+            hidden_channels=16,
+            in_channels=16,
+            num_classes=1,
+            num_blocks=3
+        )

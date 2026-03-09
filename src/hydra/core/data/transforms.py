@@ -11,7 +11,7 @@ from .utils import metropolis_hastings_biased_random_walk, patch_nodes
 
 logger = logging.getLogger(__name__)
 
-def process(batch, node_feature: str, hyperedge_feature: str):
+def process(batch, node_feature: str, hyperedge_feature: str, add_hif_dict: bool = True):
     hif_dict = batch
     hypergraph = xgi.convert.from_hif_dict(hif_dict, nodetype=int)
     # if retain_lcc:
@@ -27,11 +27,14 @@ def process(batch, node_feature: str, hyperedge_feature: str):
     for edge in sorted(hypergraph.edges):
         Y.append(hypergraph.edges[edge][hyperedge_feature])
 
-    return {
-        "hif_dict": hif_dict,
+    out = {
         "node_features": X,
         "hyperedge_features": Y,
     }
+    if add_hif_dict:
+        out["hif_dict"] = hif_dict,
+
+    return out
 
 _WALK_CTX = {}
 

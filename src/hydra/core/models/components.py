@@ -442,169 +442,403 @@ class DiT(nn.Module):
             return x, y
         return x
 
-class StructureOnlyHypergraphConv(nn.Module):
+##########################################################
+
+
+class IEncoder(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: int,
+        out_channels: int,
+        dropout: float = 0.1,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_channels, hidden_channels, bias=bias),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels, out_channels, bias=bias),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class AttentiveStatsPool(nn.Module):
     """
-    StructureOnly hypergraph convolution for dense incidence matrices.
+    Pool a set of vectors x: [B, L, C] into a graph vector [B, 4C]
+    using:
+    - attention-weighted mean
+    - mean
+    - max
+    - std
+    """
+    def __init__(self, channels: int, bias: bool = True):
+        super().__init__()
+        self.score = nn.Linear(channels, 1, bias=bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        c = x.size(-1)
+        scores = self.score(x).squeeze(-1) / math.sqrt(max(c, 1))  # [B, L]
+        attn = torch.softmax(scores, dim=1)                        # [B, L]
+
+        attn_pool = (attn.unsqueeze(-1) * x).sum(dim=1)            # [B, C]
+        mean_pool = x.mean(dim=1)                                  # [B, C]
+        max_pool = x.max(dim=1).values                             # [B, C]
+        std_pool = x.std(dim=1, unbiased=False)                    # [B, C]
+
+        return torch.cat([attn_pool, mean_pool, max_pool, std_pool], dim=-1)
+
+
+class IncidenceInteractionBlock(nn.Module):
+    """
+    One learnable node <-> hyperedge interaction block.
 
     Input:
-        H: [B, N, M]
-           B = batch size
-           N = number of nodes
-           M = number of hyperedges
+        H:         [B, N, M]
+        node_repr: [B, N, C]
+        edge_repr: [B, M, C]
 
     Output:
-        out: [B, N, out_dim]
+        updated node_repr, edge_repr
+    """
+    def __init__(self, channels: int, dropout: float = 0.1, bias: bool = True):
+        super().__init__()
+        self.edge_update = IEncoder(3 * channels, 2 * channels, channels, dropout, bias=bias)
+        self.node_update = IEncoder(3 * channels, 2 * channels, channels, dropout, bias=bias)
 
-    Notes:
-    - No node or hyperedge features are used.
-    - Node representations are derived only from hypergraph structure.
-    - A constant scalar signal is propagated, then linearly projected.
+        self.edge_norm = nn.LayerNorm(channels)
+        self.node_norm = nn.LayerNorm(channels)
+
+        self.edge_ffn = IEncoder(channels, 2 * channels, channels, dropout, bias=bias)
+        self.node_ffn = IEncoder(channels, 2 * channels, channels, dropout, bias=bias)
+
+        self.edge_ffn_norm = nn.LayerNorm(channels)
+        self.node_ffn_norm = nn.LayerNorm(channels)
+
+    def forward(
+        self,
+        H: torch.Tensor,
+        node_repr: torch.Tensor,
+        edge_repr: torch.Tensor,
+        dv_safe: torch.Tensor,
+        de_safe: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        Ht = H.transpose(1, 2)  # [B, M, N]
+
+        # nodes -> edges
+        n2e_mean = torch.bmm(Ht, node_repr) / de_safe.unsqueeze(-1)              # [B, M, C]
+        n2e_sq = torch.bmm(Ht, node_repr.pow(2)) / de_safe.unsqueeze(-1)         # [B, M, C]
+        n2e_var = (n2e_sq - n2e_mean.pow(2)).clamp_min(1e-12)
+        n2e_std = n2e_var.sqrt()
+
+        edge_delta = self.edge_update(torch.cat([edge_repr, n2e_mean, n2e_std], dim=-1))
+        edge_repr = self.edge_norm(edge_repr + edge_delta)
+        edge_repr = self.edge_ffn_norm(edge_repr + self.edge_ffn(edge_repr))
+
+        # edges -> nodes
+        e2n_mean = torch.bmm(H, edge_repr) / dv_safe.unsqueeze(-1)               # [B, N, C]
+        e2n_sq = torch.bmm(H, edge_repr.pow(2)) / dv_safe.unsqueeze(-1)          # [B, N, C]
+        e2n_var = (e2n_sq - e2n_mean.pow(2)).clamp_min(1e-12)
+        e2n_std = e2n_var.sqrt()
+
+        node_delta = self.node_update(torch.cat([node_repr, e2n_mean, e2n_std], dim=-1))
+        node_repr = self.node_norm(node_repr + node_delta)
+        node_repr = self.node_ffn_norm(node_repr + self.node_ffn(node_repr))
+
+        return node_repr, edge_repr
+
+
+class StructureOnlyHypergraphRegressor(nn.Module):
+    """
+    Structure-only hypergraph regressor for estimating corruption strength.
+
+    Input:
+        H: [B, N, M] dense incidence matrix
+
+    Output:
+        pred: [B] scalar per hypergraph
+              Recommended target: torch.logit(r.clamp(eps, 1 - eps))
     """
 
-    def __init__(self, out_channels: int, in_channels: int, bias: bool = True):
+    def __init__(
+        self,
+        hidden_channels: int = 128,
+        num_layers: int = 4,
+        num_scales: int = 2,
+        dropout: float = 0.1,
+        bias: bool = True,
+        use_pair_features: bool = True,
+    ):
         super().__init__()
-        if in_channels <= 0:
-            raise ValueError("in_channels must be positive.")
-        self.out_channels = out_channels
-        self.in_channels = in_channels
+        if hidden_channels <= 0:
+            raise ValueError("hidden_channels must be positive")
+        if num_layers < 1:
+            raise ValueError("num_layers must be at least 1")
+        if num_scales < 0:
+            raise ValueError("num_scales must be nonnegative")
 
-        self.struct_tokens = nn.Parameter(torch.randn(1, 1, in_channels))
-        # Project 1 structural channel -> out_channels
-        self.proj = nn.Linear(self.in_channels, out_channels, bias=bias)
+        self.hidden_channels = hidden_channels
+        self.num_layers = num_layers
+        self.num_scales = num_scales
+        self.use_pair_features = use_pair_features
 
-    def forward(self, H: torch.Tensor, x: torch.Tensor | None = None) -> torch.Tensor:
-        """
-        Args:
-            H: Dense incidence matrix of shape [B, N, M]
+        # node basis channels:
+        # 1) log node degree
+        # 2) node degree z-score
+        # 3) mean incident edge size
+        # 4) std incident edge size
+        # 5) inverse participation ratio of incident edge sizes
+        # 6) log pair-degree (optional)
+        self.base_node_channels = 6 if use_pair_features else 5
 
-        Returns:
-            Tensor of shape [B, N, out_channels]
-        """
+        # edge basis channels:
+        # 1) log hyperedge size
+        # 2) hyperedge size z-score
+        # 3) mean incident node degree
+        # 4) std incident node degree
+        self.base_edge_channels = 4
+
+        self.node_in_dim = self.base_node_channels * (num_scales + 1)
+        self.edge_in_dim = self.base_edge_channels + self.base_node_channels
+
+        self.node_input_proj = nn.Sequential(
+            nn.Linear(self.node_in_dim, hidden_channels, bias=bias),
+            nn.LayerNorm(hidden_channels),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels, hidden_channels, bias=bias),
+        )
+
+        self.edge_input_proj = nn.Sequential(
+            nn.Linear(self.edge_in_dim, hidden_channels, bias=bias),
+            nn.LayerNorm(hidden_channels),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels, hidden_channels, bias=bias),
+        )
+
+        self.blocks = nn.ModuleList(
+            [
+                IncidenceInteractionBlock(
+                    channels=hidden_channels,
+                    dropout=dropout,
+                    bias=bias,
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
+        self.node_jk_proj = nn.Sequential(
+            nn.Linear((num_layers + 1) * hidden_channels, hidden_channels, bias=bias),
+            nn.LayerNorm(hidden_channels),
+            nn.GELU(),
+        )
+        self.edge_jk_proj = nn.Sequential(
+            nn.Linear((num_layers + 1) * hidden_channels, hidden_channels, bias=bias),
+            nn.LayerNorm(hidden_channels),
+            nn.GELU(),
+        )
+
+        self.node_pool = AttentiveStatsPool(hidden_channels, bias=bias)
+        self.edge_pool = AttentiveStatsPool(hidden_channels, bias=bias)
+
+        global_dim = 8 if use_pair_features else 6
+        self.global_proj = nn.Sequential(
+            nn.Linear(global_dim, hidden_channels, bias=bias),
+            nn.LayerNorm(hidden_channels),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+        graph_dim = 4 * hidden_channels + 4 * hidden_channels + hidden_channels
+        self.head = nn.Sequential(
+            nn.LayerNorm(graph_dim),
+            nn.Linear(graph_dim, 2 * hidden_channels, bias=bias),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(2 * hidden_channels, hidden_channels, bias=bias),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_channels, 1, bias=bias),
+        )
+
+    @staticmethod
+    def _validate_input(H: torch.Tensor) -> torch.Tensor:
         if H.dim() != 3:
             raise ValueError(f"Expected H with shape [B, N, M], got {tuple(H.shape)}")
         if not torch.isfinite(H).all():
             raise ValueError("H contains NaN or Inf")
         if (H < 0).any():
             raise ValueError("H must be nonnegative")
-        if x is not None and x.dim() != 3:
-            raise ValueError(f"Expected x with shape [B, N, in_channels], got {tuple(x.shape)}")
+        return H.float()
 
-        if not H.is_floating_point():
-            H = H.float()
+    @staticmethod
+    def _zscore_per_graph(x: torch.Tensor) -> torch.Tensor:
+        """
+        x: [B, L]
+        returns graph-wise z-score
+        """
+        mean = x.mean(dim=1, keepdim=True)
+        std = x.std(dim=1, keepdim=True, unbiased=False).clamp_min(1e-6)
+        return (x - mean) / std
 
-        B, N, M = H.shape
+    @staticmethod
+    def _normalized_hypergraph_propagation(H: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        """
+        P x where
+        P = Dv^{-1/2} H De^{-1} H^T Dv^{-1/2}
+        """
+        dv = H.sum(dim=2).clamp_min(1e-8)  # [B, N]
+        de = H.sum(dim=1).clamp_min(1e-8)  # [B, M]
 
-        if x is not None and (x.shape[0] != B or x.shape[1] != N):
-            raise ValueError(f"Shape mismatch: H is {H.shape}, but x is {x.shape}")
-        
-        if x is None:
-            x = self.struct_tokens.expand(B, N, -1)  # [B, N, in_channels]
+        dv_inv_sqrt = dv.pow(-0.5)
+        de_inv = de.pow(-1.0)
 
-        device = H.device
-        dtype = H.dtype
+        x = dv_inv_sqrt.unsqueeze(-1) * x
+        x = torch.bmm(H.transpose(1, 2), x)
+        x = de_inv.unsqueeze(-1) * x
+        x = torch.bmm(H, x)
+        x = dv_inv_sqrt.unsqueeze(-1) * x
+        return x
 
-        # Node degree: D_v[i,i] = sum_e H[i,e]
+    def _compute_node_structural_features(self, H: torch.Tensor) -> torch.Tensor:
         dv = H.sum(dim=2)  # [B, N]
-
-        # Hyperedge degree/cardinality: B_e[e,e] = sum_i H[i,e]
         de = H.sum(dim=1)  # [B, M]
 
-        # Inverse degree factors
-        dv_inv_sqrt = torch.zeros_like(dv)
-        dv_mask = dv > 0
-        dv_inv_sqrt[dv_mask] = dv[dv_mask].pow(-0.5)
+        dv_safe = dv.clamp_min(1.0)
 
-        de_inv = torch.zeros_like(de)
-        de_mask = de > 0
-        de_inv[de_mask] = de[de_mask].pow(-1.0)
+        mean_edge_size = torch.bmm(H, de.unsqueeze(-1)).squeeze(-1) / dv_safe
+        second_moment_edge_size = torch.bmm(H, (de ** 2).unsqueeze(-1)).squeeze(-1) / dv_safe
+        var_edge_size = (second_moment_edge_size - mean_edge_size.pow(2)).clamp_min(1e-12)
+        std_edge_size = var_edge_size.sqrt()
 
-        # StructureOnly input: constant signal
-        x = x if x is not None else torch.ones(B, N, 1, device=device, dtype=dtype)  # [B, N, 1]
+        sum_sizes = torch.bmm(H, de.unsqueeze(-1)).squeeze(-1)
+        sum_sq_sizes = torch.bmm(H, (de ** 2).unsqueeze(-1)).squeeze(-1)
+        ipr = sum_sq_sizes / sum_sizes.clamp_min(1.0).pow(2)
 
-        # Normalized hypergraph propagation:
-        # X' = D_v^{-1/2} H B_e^{-1} H^T D_v^{-1/2} X
+        log_dv = torch.log1p(dv)
+        dv_z = self._zscore_per_graph(log_dv)
 
-        # D_v^{-1/2} X
-        x = dv_inv_sqrt.unsqueeze(-1) * x  # [B, N, 1]
+        feats = [
+            log_dv,
+            dv_z,
+            mean_edge_size,
+            std_edge_size,
+            ipr,
+        ]
 
-        # H^T D_v^{-1/2} X
-        x = torch.bmm(H.transpose(1, 2), x)  # [B, M, 1]
+        if self.use_pair_features:
+            A = torch.bmm(H, H.transpose(1, 2))  # [B, N, N]
+            pair_deg = A.sum(dim=2) - torch.diagonal(A, dim1=1, dim2=2)
+            pair_deg = pair_deg.clamp_min(0.0)
+            feats.append(torch.log1p(pair_deg))
 
-        # B_e^{-1} ...
-        x = de_inv.unsqueeze(-1) * x  # [B, M, 1]
+        x0 = torch.stack(feats, dim=-1)
+        return x0
 
-        # H B_e^{-1} H^T D_v^{-1/2} X
-        x = torch.bmm(H, x)  # [B, N, 1]
+    def _compute_edge_structural_features(self, H: torch.Tensor) -> torch.Tensor:
+        dv = H.sum(dim=2)  # [B, N]
+        de = H.sum(dim=1)  # [B, M]
 
-        # Final left normalization
-        x = dv_inv_sqrt.unsqueeze(-1) * x  # [B, N, 1]
+        de_safe = de.clamp_min(1.0)
 
-        # Linear projection to desired dimension
-        out = self.proj(x)  # [B, N, out_channels]
-        return out
+        mean_node_degree = torch.bmm(H.transpose(1, 2), dv.unsqueeze(-1)).squeeze(-1) / de_safe
+        second_moment_node_degree = torch.bmm(
+            H.transpose(1, 2), (dv ** 2).unsqueeze(-1)
+        ).squeeze(-1) / de_safe
+        var_node_degree = (second_moment_node_degree - mean_node_degree.pow(2)).clamp_min(1e-12)
+        std_node_degree = var_node_degree.sqrt()
 
-class StructureOnlyHypergraphNN(nn.Module):
+        log_de = torch.log1p(de)
+        de_z = self._zscore_per_graph(log_de)
 
-    def __init__(self, out_channels: int, hidden_channels: int, in_channels: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1):
-        super().__init__()
-        self.out_channels = out_channels
-        self.hidden_channels = hidden_channels
-        self.bias = bias
-        self.num_blocks = num_blocks
-        assert num_blocks >= 1, "num_blocks must be at least 1"
-        self.in_layer = StructureOnlyHypergraphConv(out_channels=hidden_channels, in_channels = in_channels, bias=bias)
-        self.activation = nn.LeakyReLU()
-        self.dropout = nn.Dropout(dropout)
-        self.layers = nn.ModuleList([
-            nn.ModuleDict({
-                "norm": nn.LayerNorm(hidden_channels, elementwise_affine=True),
-                "conv": StructureOnlyHypergraphConv(
-                    out_channels=hidden_channels,
-                    in_channels=hidden_channels,
-                    bias=bias,
-                ),
-                "activation": nn.LeakyReLU(),
-                "skip_proj": nn.Linear(hidden_channels, hidden_channels, bias=False),
-            }) for _ in range(num_blocks)
-        ])
-        self.out_proj = nn.Linear(hidden_channels, out_channels, bias=bias)
-    
-    def forward(self, H: torch.Tensor) -> torch.Tensor:
-        B, N, M = H.shape
-
-        # Initial StructureOnly convolution to hidden_channels
-        X = self.in_layer(H)  # [B, N, hidden_channels]
-        X = self.activation(X)
-
-        for layer in self.layers:
-            conv_out = layer["norm"](X)
-            conv_out = layer["conv"](H, conv_out)  # [B, N, hidden_channels]
-            conv_out = layer["activation"](conv_out)
-            conv_out = self.dropout(conv_out)
-
-            # Skip connection
-            skip = layer["skip_proj"](X)
-            X = conv_out + skip
-
-        # Final projection to out_channels
-        out = self.out_proj(X)  # [B, N, out_channels]
-        return out
-
-class StructureOnlyHypergraphClassifier(nn.Module):
-
-    def __init__(self, out_channels: int, hidden_channels: int, in_channels: int, num_classes: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1):
-        super().__init__()
-        self.encoder = StructureOnlyHypergraphNN(out_channels, hidden_channels, in_channels, bias, num_blocks, dropout)
-        self.classifier = nn.Sequential(
-            nn.LayerNorm(out_channels),
-            nn.Linear(out_channels, out_channels),
-            nn.LeakyReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(out_channels, num_classes),
+        e0 = torch.stack(
+            [
+                log_de,
+                de_z,
+                mean_node_degree,
+                std_node_degree,
+            ],
+            dim=-1,
         )
+        return e0
+
+    def _compute_global_features(self, H: torch.Tensor) -> torch.Tensor:
+        dv = H.sum(dim=2)  # [B, N]
+        de = H.sum(dim=1)  # [B, M]
+
+        density = H.mean(dim=(1, 2))              # [B]
+        log_dv = torch.log1p(dv)
+        log_de = torch.log1p(de)
+
+        feats = [
+            density,
+            log_dv.mean(dim=1),
+            log_dv.std(dim=1, unbiased=False),
+            log_de.mean(dim=1),
+            log_de.std(dim=1, unbiased=False),
+            log_de.max(dim=1).values,
+        ]
+
+        if self.use_pair_features:
+            A = torch.bmm(H, H.transpose(1, 2))
+            pair_deg = A.sum(dim=2) - torch.diagonal(A, dim1=1, dim2=2)
+            pair_deg = pair_deg.clamp_min(0.0)
+            log_pair = torch.log1p(pair_deg)
+
+            feats.extend(
+                [
+                    log_pair.mean(dim=1),
+                    log_pair.std(dim=1, unbiased=False),
+                ]
+            )
+
+        return torch.stack(feats, dim=-1)
 
     def forward(self, H: torch.Tensor) -> torch.Tensor:
-        x = self.encoder(H)  # [B, N, out_channels]
-        x = x.mean(dim=1)   # Global mean pooling over nodes -> [B, out_channels]
-        logits = self.classifier(x)  # [B, num_classes]
-        return logits
+        H = self._validate_input(H)
+
+        dv_safe = H.sum(dim=2).clamp_min(1.0)  # [B, N]
+        de_safe = H.sum(dim=1).clamp_min(1.0)  # [B, M]
+
+        # structural basis
+        x0 = self._compute_node_structural_features(H)  # [B, N, F_n]
+        e0 = self._compute_edge_structural_features(H)  # [B, M, F_e]
+
+        # multi-scale node basis
+        xs = [x0]
+        x = x0
+        for _ in range(self.num_scales):
+            x = self._normalized_hypergraph_propagation(H, x)
+            xs.append(x)
+        node_basis = torch.cat(xs, dim=-1)  # [B, N, F_n * (num_scales + 1)]
+
+        # edge init gets both edge stats and mean incident node basis
+        edge_node_basis = torch.bmm(H.transpose(1, 2), x0) / de_safe.unsqueeze(-1)
+        edge_basis = torch.cat([e0, edge_node_basis], dim=-1)
+
+        node_repr = self.node_input_proj(node_basis)  # [B, N, C]
+        edge_repr = self.edge_input_proj(edge_basis)  # [B, M, C]
+
+        node_hist = [node_repr]
+        edge_hist = [edge_repr]
+
+        for block in self.blocks:
+            node_repr, edge_repr = block(H, node_repr, edge_repr, dv_safe, de_safe)
+            node_hist.append(node_repr)
+            edge_hist.append(edge_repr)
+
+        node_repr = self.node_jk_proj(torch.cat(node_hist, dim=-1))  # [B, N, C]
+        edge_repr = self.edge_jk_proj(torch.cat(edge_hist, dim=-1))  # [B, M, C]
+
+        node_graph = self.node_pool(node_repr)            # [B, 4C]
+        edge_graph = self.edge_pool(edge_repr)            # [B, 4C]
+        global_graph = self.global_proj(self._compute_global_features(H))  # [B, C]
+
+        graph_repr = torch.cat([node_graph, edge_graph, global_graph], dim=-1)
+        pred = self.head(graph_repr)          # [B, 1]
+
+        return pred

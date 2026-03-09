@@ -88,6 +88,7 @@ def train_ddm(
                 huggingface_datasets_config=huggingface_datasets_config,
                 sample_every_n_steps=10_000,
                 walk_length=random_walk_config.walk_length,
+                num_samples=1,
             ),
         ],
     )

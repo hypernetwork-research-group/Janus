@@ -35,12 +35,6 @@ def sample_ddm(
 
     model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
 
-    trainer = L.Trainer(
-        default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}/logs/version_0", # TODO: remove this hardcoded path
-        logger=False,
-        enable_checkpointing=False,
-    )
-
     datamodule = FeaturesDataModule(
         dataset_name=huggingface_datasets_config.dataset_name,
         node_feature=huggingface_datasets_config.node_feature,
@@ -55,6 +49,8 @@ def sample_ddm(
         persistent_workers=dataloader_config.persistent_workers,
         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
     )
+    datamodule.prepare_data()
+    datamodule.setup("predict")
 
     dataset = load_dataset(
         huggingface_datasets_config.dataset_name,
@@ -69,13 +65,14 @@ def sample_ddm(
         logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
         hyperedges = set()
         while len(hyperedges) < len(ds_hypergraph.edges):
-            predictions = trainer.predict(
-                model,
-                datamodule=datamodule,
-                ckpt_path=ckpt_path,
-            )
+            predictions = []
+            for batch in datamodule.predict_dataloader():
+                print(batch.keys())
+                batch = {key: value.to(model.device) for key, value in batch.items()}
+                incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T = model.predict_step(batch, 0)
+                predictions.append(incidence_matrices.cpu())
 
-            for incidence_matrices, *_ in tqdm(predictions):
+            for incidence_matrices in tqdm(predictions):
                 for incidence_matrix in incidence_matrices:
                     for col in incidence_matrix.T:
                         nodes = torch.nonzero(col).squeeze().tolist()
@@ -85,7 +82,13 @@ def sample_ddm(
                             continue
                         nodes = tuple(sorted(nodes))
                         hyperedges.add(nodes)
-            
+                        if len(hyperedges) >= len(ds_hypergraph.edges):
+                            break
+                    if len(hyperedges) >= len(ds_hypergraph.edges):
+                        break
+                if len(hyperedges) >= len(ds_hypergraph.edges):
+                    break
+
             logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
 
         hyperedges = list(hyperedges)
