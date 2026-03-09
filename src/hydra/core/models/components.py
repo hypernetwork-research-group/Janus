@@ -442,79 +442,137 @@ class DiT(nn.Module):
             return x, y
         return x
 
-class StructureOnlyHypergraphConv(nn.Module):
+class FeatureLessHypergraphConv(nn.Module):
     """
-    Hypergraph convolution without node/hyperedge input features.
+    Featureless hypergraph convolution for dense incidence matrices.
 
     Input:
-        H: dense incidence matrix of shape [B, N, M]
-           H[b, i, e] = 1 if node i belongs to hyperedge e, else 0
-           (can also be soft / weighted incidence values)
+        H: [B, N, M]
+           B = batch size
+           N = number of nodes
+           M = number of hyperedges
 
     Output:
-        node_embeddings: [B, N, out_dim]
+        out: [B, N, out_dim]
+
+    Notes:
+    - No node or hyperedge features are used.
+    - Node representations are derived only from hypergraph structure.
+    - A constant scalar signal is propagated, then linearly projected.
     """
 
-    def __init__(self, out_dim: int, hidden_dim: int = 1, num_steps: int = 1, num_heads: int = 1, eps: float = 1e-8):
+    def __init__(self, out_channels: int, bias: bool = True, eps: float = 1e-8, in_channels: int | None = None):
         super().__init__()
-        self.out_dim = out_dim
-        self.hidden_dim = hidden_dim
-        self.num_steps = num_steps
-        self.num_heads = num_heads
+        if in_channels is not None and in_channels <= 0:
+            raise ValueError("in_channels must be positive if specified.")
+        self.out_channels = out_channels
         self.eps = eps
+        self.in_channels = in_channels
 
-        # Final projection into desired dimensional space
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_dim, num_heads=self.num_heads, batch_first=True)
-        self.proj = nn.Linear(hidden_dim, out_dim)
+        # Project 1 structural channel -> out_channels
+        self.proj = nn.Linear(self.in_channels or 1, out_channels, bias=bias)
 
-    def forward(self, H: torch.Tensor) -> torch.Tensor:
+    def forward(self, H: torch.Tensor, x: torch.Tensor | None = None) -> torch.Tensor:
         """
         Args:
-            H: [B, N, M] dense incidence matrix
+            H: Dense incidence matrix of shape [B, N, M]
 
         Returns:
-            X: [B, N, out_dim]
+            Tensor of shape [B, N, out_channels]
         """
+        if H.dim() != 3:
+            raise ValueError(f"Expected H with shape [B, N, M], got {tuple(H.shape)}")
+        if self.in_channels is not None and x is None:
+            raise ValueError("in_channels is set but no input features x are provided.")
+        if x is not None and x.dim() != 3:
+            raise ValueError(f"Expected x with shape [B, N, in_channels], got {tuple(x.shape)}")
+
         B, N, M = H.shape
+
+        if x is not None and x.shape[0] != B and x.shape[1] != N:
+            raise ValueError(f"Shape mismatch: H is {H.shape}, but x is {x.shape}")
+
         device = H.device
         dtype = H.dtype
 
-        # Node degrees: [B, N]
-        dv = H.sum(dim=2)  # sum over hyperedges
+        # Node degree: D_v[i,i] = sum_e H[i,e]
+        dv = H.sum(dim=2)  # [B, N]
 
-        # Hyperedge degrees: [B, M]
-        de = H.sum(dim=1)  # sum over nodes
+        # Hyperedge degree/cardinality: B_e[e,e] = sum_i H[i,e]
+        de = H.sum(dim=1)  # [B, M]
 
         # Inverse degree factors
-        dv_inv_sqrt = (dv + self.eps).pow(-0.5)   # [B, N]
-        de_inv = (de + self.eps).pow(-1.0)        # [B, M]
+        dv_inv_sqrt = (dv + self.eps).pow(-0.5)  # [B, N]
+        de_inv = (de + self.eps).pow(-1.0)       # [B, M]
 
-        # Initial node feature from structure only.
-        # Option 1: constant scalar per node
-        X = torch.ones(B, N, self.hidden_dim, device=device, dtype=dtype)
+        # Featureless input: constant signal
+        x = x if x is not None else torch.ones(B, N, 1, device=device, dtype=dtype)  # [B, N, 1]
 
-        # You could also use node degree as initialization instead:
-        # X = dv.unsqueeze(-1).repeat(1, 1, self.hidden_dim)
+        # Normalized hypergraph propagation:
+        # X' = D_v^{-1/2} H B_e^{-1} H^T D_v^{-1/2} X
 
-        for _ in range(self.num_steps):
-            # Dv^{-1/2} X
-            X_norm = dv_inv_sqrt.unsqueeze(-1) * X                      # [B, N, hidden_dim]
+        # D_v^{-1/2} X
+        x = dv_inv_sqrt.unsqueeze(-1) * x  # [B, N, 1]
 
-            # H^T Dv^{-1/2} X
-            E = torch.bmm(H.transpose(1, 2), X_norm)                    # [B, M, hidden_dim]
+        # H^T D_v^{-1/2} X
+        x = torch.bmm(H.transpose(1, 2), x)  # [B, M, 1]
 
-            # De^{-1} H^T Dv^{-1/2} X
-            E = de_inv.unsqueeze(-1) * E                                # [B, M, hidden_dim]
+        # B_e^{-1} ...
+        x = de_inv.unsqueeze(-1) * x  # [B, M, 1]
 
-            # H De^{-1} H^T Dv^{-1/2} X
-            X = torch.bmm(H, E)                                         # [B, N, hidden_dim]
+        # H B_e^{-1} H^T D_v^{-1/2} X
+        x = torch.bmm(H, x)  # [B, N, 1]
 
-            # Dv^{-1/2} H De^{-1} H^T Dv^{-1/2} X
-            X = dv_inv_sqrt.unsqueeze(-1) * X                           # [B, N, hidden_dim]
+        # Final left normalization
+        x = dv_inv_sqrt.unsqueeze(-1) * x  # [B, N, 1]
 
-        X, _ = self.attention(X, X, X)  # [B, N, hidden_dim]
+        # Linear projection to desired dimension
+        out = self.proj(x)  # [B, N, out_channels]
+        return out
 
-        # X = self.layer_norm(X)                                          # [B, N, hidden_dim]
-        # Linear projection to desired output dimension
-        X = self.proj(X)                                                # [B, N, out_dim]
-        return X
+class FeatureLessHypergraphNN(nn.Module):
+
+    def __init__(self, out_channels: int, hidden_channels: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1, eps: float = 1e-8):
+        super().__init__()
+        self.out_channels = out_channels
+        self.hidden_channels = hidden_channels
+        self.bias = bias
+        self.eps = eps
+        self.num_blocks = num_blocks
+        assert num_blocks >= 1, "num_blocks must be at least 1"
+        self.in_layer = FeatureLessHypergraphConv(out_channels=hidden_channels, bias=bias, eps=eps)
+        self.dropout = nn.Dropout(dropout)
+        self.layers = nn.ModuleList([
+            nn.ModuleDict({
+                "norm": nn.LayerNorm(hidden_channels, elementwise_affine=True),
+                "conv": FeatureLessHypergraphConv(
+                    out_channels=hidden_channels,
+                    in_channels=hidden_channels,
+                    bias=bias,
+                    eps=eps
+                ),
+                "activation": nn.LeakyReLU(),
+                "skip_proj": nn.Linear(hidden_channels, hidden_channels, bias=False),
+            }) for _ in range(num_blocks)
+        ])
+        self.out_proj = nn.Linear(hidden_channels, out_channels, bias=bias)
+    
+    def forward(self, H: torch.Tensor) -> torch.Tensor:
+        B, N, M = H.shape
+
+        # Initial featureless convolution to hidden_channels
+        X = self.in_layer(H)  # [B, N, hidden_channels]
+
+        for layer in self.layers:
+            conv_out = layer["norm"](X)
+            conv_out = layer["conv"](H, conv_out)  # [B, N, hidden_channels]
+            conv_out = layer["activation"](conv_out)
+            conv_out = self.dropout(conv_out)
+
+            # Skip connection
+            skip = layer["skip_proj"](X)
+            X = conv_out + skip
+
+        # Final projection to out_channels
+        out = self.out_proj(X)  # [B, N, out_channels]
+        return out
