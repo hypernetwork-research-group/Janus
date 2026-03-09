@@ -442,9 +442,9 @@ class DiT(nn.Module):
             return x, y
         return x
 
-class FeatureLessHypergraphConv(nn.Module):
+class StructureOnlyHypergraphConv(nn.Module):
     """
-    Featureless hypergraph convolution for dense incidence matrices.
+    StructureOnly hypergraph convolution for dense incidence matrices.
 
     Input:
         H: [B, N, M]
@@ -461,16 +461,16 @@ class FeatureLessHypergraphConv(nn.Module):
     - A constant scalar signal is propagated, then linearly projected.
     """
 
-    def __init__(self, out_channels: int, bias: bool = True, eps: float = 1e-8, in_channels: int | None = None):
+    def __init__(self, out_channels: int, in_channels: int, bias: bool = True):
         super().__init__()
-        if in_channels is not None and in_channels <= 0:
-            raise ValueError("in_channels must be positive if specified.")
+        if in_channels <= 0:
+            raise ValueError("in_channels must be positive.")
         self.out_channels = out_channels
-        self.eps = eps
         self.in_channels = in_channels
 
+        self.struct_tokens = nn.Parameter(torch.randn(1, 1, in_channels))
         # Project 1 structural channel -> out_channels
-        self.proj = nn.Linear(self.in_channels or 1, out_channels, bias=bias)
+        self.proj = nn.Linear(self.in_channels, out_channels, bias=bias)
 
     def forward(self, H: torch.Tensor, x: torch.Tensor | None = None) -> torch.Tensor:
         """
@@ -482,15 +482,23 @@ class FeatureLessHypergraphConv(nn.Module):
         """
         if H.dim() != 3:
             raise ValueError(f"Expected H with shape [B, N, M], got {tuple(H.shape)}")
-        if self.in_channels is not None and x is None:
-            raise ValueError("in_channels is set but no input features x are provided.")
+        if not torch.isfinite(H).all():
+            raise ValueError("H contains NaN or Inf")
+        if (H < 0).any():
+            raise ValueError("H must be nonnegative")
         if x is not None and x.dim() != 3:
             raise ValueError(f"Expected x with shape [B, N, in_channels], got {tuple(x.shape)}")
 
+        if not H.is_floating_point():
+            H = H.float()
+
         B, N, M = H.shape
 
-        if x is not None and x.shape[0] != B and x.shape[1] != N:
+        if x is not None and (x.shape[0] != B or x.shape[1] != N):
             raise ValueError(f"Shape mismatch: H is {H.shape}, but x is {x.shape}")
+        
+        if x is None:
+            x = self.struct_tokens.expand(B, N, -1)  # [B, N, in_channels]
 
         device = H.device
         dtype = H.dtype
@@ -502,10 +510,15 @@ class FeatureLessHypergraphConv(nn.Module):
         de = H.sum(dim=1)  # [B, M]
 
         # Inverse degree factors
-        dv_inv_sqrt = (dv + self.eps).pow(-0.5)  # [B, N]
-        de_inv = (de + self.eps).pow(-1.0)       # [B, M]
+        dv_inv_sqrt = torch.zeros_like(dv)
+        dv_mask = dv > 0
+        dv_inv_sqrt[dv_mask] = dv[dv_mask].pow(-0.5)
 
-        # Featureless input: constant signal
+        de_inv = torch.zeros_like(de)
+        de_mask = de > 0
+        de_inv[de_mask] = de[de_mask].pow(-1.0)
+
+        # StructureOnly input: constant signal
         x = x if x is not None else torch.ones(B, N, 1, device=device, dtype=dtype)  # [B, N, 1]
 
         # Normalized hypergraph propagation:
@@ -530,26 +543,25 @@ class FeatureLessHypergraphConv(nn.Module):
         out = self.proj(x)  # [B, N, out_channels]
         return out
 
-class FeatureLessHypergraphNN(nn.Module):
+class StructureOnlyHypergraphNN(nn.Module):
 
-    def __init__(self, out_channels: int, hidden_channels: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1, eps: float = 1e-8):
+    def __init__(self, out_channels: int, hidden_channels: int, in_channels: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1):
         super().__init__()
         self.out_channels = out_channels
         self.hidden_channels = hidden_channels
         self.bias = bias
-        self.eps = eps
         self.num_blocks = num_blocks
         assert num_blocks >= 1, "num_blocks must be at least 1"
-        self.in_layer = FeatureLessHypergraphConv(out_channels=hidden_channels, bias=bias, eps=eps)
+        self.in_layer = StructureOnlyHypergraphConv(out_channels=hidden_channels, in_channels = in_channels, bias=bias)
+        self.activation = nn.LeakyReLU()
         self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList([
             nn.ModuleDict({
                 "norm": nn.LayerNorm(hidden_channels, elementwise_affine=True),
-                "conv": FeatureLessHypergraphConv(
+                "conv": StructureOnlyHypergraphConv(
                     out_channels=hidden_channels,
                     in_channels=hidden_channels,
                     bias=bias,
-                    eps=eps
                 ),
                 "activation": nn.LeakyReLU(),
                 "skip_proj": nn.Linear(hidden_channels, hidden_channels, bias=False),
@@ -560,8 +572,9 @@ class FeatureLessHypergraphNN(nn.Module):
     def forward(self, H: torch.Tensor) -> torch.Tensor:
         B, N, M = H.shape
 
-        # Initial featureless convolution to hidden_channels
+        # Initial StructureOnly convolution to hidden_channels
         X = self.in_layer(H)  # [B, N, hidden_channels]
+        X = self.activation(X)
 
         for layer in self.layers:
             conv_out = layer["norm"](X)
@@ -576,3 +589,22 @@ class FeatureLessHypergraphNN(nn.Module):
         # Final projection to out_channels
         out = self.out_proj(X)  # [B, N, out_channels]
         return out
+
+class StructureOnlyHypergraphClassifier(nn.Module):
+
+    def __init__(self, out_channels: int, hidden_channels: int, in_channels: int, num_classes: int, bias: bool = True, num_blocks: int = 1, dropout: float = 0.1):
+        super().__init__()
+        self.encoder = StructureOnlyHypergraphNN(out_channels, hidden_channels, in_channels, bias, num_blocks, dropout)
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(out_channels),
+            nn.Linear(out_channels, out_channels),
+            nn.LeakyReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(out_channels, num_classes),
+        )
+
+    def forward(self, H: torch.Tensor) -> torch.Tensor:
+        x = self.encoder(H)  # [B, N, out_channels]
+        x = x.mean(dim=1)   # Global mean pooling over nodes -> [B, out_channels]
+        logits = self.classifier(x)  # [B, num_classes]
+        return logits
