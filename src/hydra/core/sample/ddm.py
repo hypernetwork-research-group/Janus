@@ -64,31 +64,33 @@ def sample_ddm(
         ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
         logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
         hyperedges = set()
-        while len(hyperedges) < len(ds_hypergraph.edges):
-            predictions = []
-            for batch in datamodule.predict_dataloader():
-                batch = {key: value.to(model.device) for key, value in batch.items()}
-                incidence_matrices, *_ = model.predict_step(batch, 0)
-                predictions.append(incidence_matrices.cpu())
+        with tqdm(total=len(ds_hypergraph.edges), desc="Sampling hyperedges") as pbar:
+            while len(hyperedges) < len(ds_hypergraph.edges):
+                predictions = []
+                for batch in datamodule.predict_dataloader():
+                    batch = {key: value.to(model.device) for key, value in batch.items()}
+                    incidence_matrices, *_ = model.predict_step(batch, 0)
+                    predictions.append(incidence_matrices.cpu())
 
-            for incidence_matrices in tqdm(predictions):
-                for incidence_matrix in incidence_matrices:
-                    for col in incidence_matrix.T:
-                        nodes = torch.nonzero(col).squeeze().tolist()
-                        if isinstance(nodes, int):
-                            nodes = [nodes]
-                        if len(nodes) < 1:
-                            continue
-                        nodes = tuple(sorted(nodes))
-                        hyperedges.add(nodes)
+                for incidence_matrices in predictions:
+                    for incidence_matrix in incidence_matrices:
+                        for col in incidence_matrix.T:
+                            nodes = torch.nonzero(col).squeeze().tolist()
+                            if isinstance(nodes, int):
+                                nodes = [nodes]
+                            if len(nodes) < 1:
+                                continue
+                            nodes = tuple(sorted(nodes))
+                            hyperedges.add(nodes)
+                            if len(hyperedges) >= len(ds_hypergraph.edges):
+                                break
                         if len(hyperedges) >= len(ds_hypergraph.edges):
                             break
                     if len(hyperedges) >= len(ds_hypergraph.edges):
                         break
-                if len(hyperedges) >= len(ds_hypergraph.edges):
-                    break
 
-            logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
+                pbar.update(len(hyperedges) - pbar.n)
+                logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
 
         hyperedges = list(hyperedges)
         hypergraph = xgi.Hypergraph(hyperedges)
