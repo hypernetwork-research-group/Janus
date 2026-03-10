@@ -29,9 +29,14 @@ def sample_ddm(
     assert not (ckpt_path is not None and pl_module is not None), "Only one of ckpt_path or pl_module can be provided"
 
     if ckpt_path is not None:
-        model = DiffusionTransformer.load_from_checkpoint(ckpt_path)
+        model = DiffusionTransformer.load_from_checkpoint(ckpt_path, map_location="cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
     else:
         model = pl_module
+        device = model.device
+        if device == torch.device("cpu"):
+            logger.warning("Sampling on CPU may be very slow. Consider moving the model to GPU if possible.")
 
     model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
 
@@ -67,10 +72,11 @@ def sample_ddm(
         with tqdm(total=len(ds_hypergraph.edges), desc="Sampling hyperedges") as pbar:
             while len(hyperedges) < len(ds_hypergraph.edges):
                 predictions = []
-                for batch in datamodule.predict_dataloader():
-                    batch = {key: value.to(model.device) for key, value in batch.items()}
-                    incidence_matrices, *_ = model.predict_step(batch, 0)
-                    predictions.append(incidence_matrices.cpu())
+                with torch.no_grad():
+                    for batch in datamodule.predict_dataloader():
+                        batch = {key: value.to(device) for key, value in batch.items()}
+                        incidence_matrices, *_ = model.predict_step(batch, 0)
+                        predictions.append(incidence_matrices.cpu())
 
                 for incidence_matrices in predictions:
                     for incidence_matrix in incidence_matrices:
