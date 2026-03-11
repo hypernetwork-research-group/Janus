@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from copy import deepcopy
+from collections import defaultdict
 
 import torch
 from lightning.pytorch.callbacks import Callback, EMAWeightAveraging
@@ -33,6 +34,8 @@ class DDMSampleEvaluationCallback(Callback):
         self.walk_length = walk_length
         self.datamodule_config = datamodule_config
         self.huggingface_datasets_config = huggingface_datasets_config
+        self.metrics = defaultdict(list)
+        self.metric_baseline = dict()
 
         for _, reference_results in results_discovery(references_dir):
             if reference_results['dataset_name'] == huggingface_datasets_config.dataset_name:
@@ -82,9 +85,35 @@ class DDMSampleEvaluationCallback(Callback):
                             reference=self.reference_results,
                             include_metrics=["hyper_net_simile", "hyper_portrait_divergence"],
                         )
-                        # Compute the magnitude of (hyper_net_simile, hyper_portrait_divergence)
-                        comparison['magnitude'] = (comparison['hyper_net_simile'] ** 2 + comparison['hyper_portrait_divergence'] ** 2) ** 0.5
-                        # Add comparison/ prefix to all keys in comparison
+
+                        total = 0.0
+                        n_metrics = 0
+
+                        for k, v in comparison.items():
+                            if k not in self.metric_baseline:
+                                self.metric_baseline[k] = v
+                            if k not in self.metrics:
+                                self.metrics[k] = []
+
+                            v0 = self.metric_baseline[k]
+                            history = self.metrics[k]
+
+                            # std from past values only
+                            if len(history) >= 2:
+                                values = torch.tensor(history, dtype=torch.float32)
+                                std = values.std(unbiased=False).item()
+                                std = max(std, 1e-8)
+                            else:
+                                # not enough history yet
+                                std = 1.0
+
+                            z = (v - v0) / std
+                            total += z ** 2
+                            n_metrics += 1
+
+                            history.append(v)
+
+                        comparison["magnitude"] = (total / max(n_metrics, 1)) ** 0.5
                         comparison = {f"comparison/{k}": v for k, v in comparison.items()}
 
                         if logger is not None:
