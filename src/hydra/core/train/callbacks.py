@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from copy import deepcopy
+from collections import defaultdict
 
 import torch
 from lightning.pytorch.callbacks import Callback, EMAWeightAveraging
@@ -33,6 +34,7 @@ class DDMSampleEvaluationCallback(Callback):
         self.walk_length = walk_length
         self.datamodule_config = datamodule_config
         self.huggingface_datasets_config = huggingface_datasets_config
+        self.metrics = defaultdict(list)
 
         for _, reference_results in results_discovery(references_dir):
             if reference_results['dataset_name'] == huggingface_datasets_config.dataset_name:
@@ -82,9 +84,39 @@ class DDMSampleEvaluationCallback(Callback):
                             reference=self.reference_results,
                             include_metrics=["hyper_net_simile", "hyper_portrait_divergence"],
                         )
-                        # Compute the magnitude of (hyper_net_simile, hyper_portrait_divergence)
-                        comparison['magnitude'] = (comparison['hyper_net_simile'] ** 2 + comparison['hyper_portrait_divergence'] ** 2) ** 0.5
-                        # Add comparison/ prefix to all keys in comparison
+
+                        # Store raw metrics history
+                        for k, v in comparison.items():
+                            self.metrics[k].append(v)
+
+                        normalized_comparison = {}
+                        normalized_values = []
+
+                        # Normalize each metric so it is comparable with the others
+                        for k, v in comparison.items():
+                            values = torch.tensor(self.metrics[k], dtype=torch.float32)
+
+                            # Baseline = first observed value
+                            v0 = values[0]
+
+                            # Use population std to avoid NaN when only one value is available
+                            std = values.std(unbiased=False).item()
+
+                            # Standardized change from baseline
+                            normalized_v = (float(v) - float(v0)) / (std + 1e-8)
+
+                            # normalized_comparison[f"{k}_normalized"] = normalized_v
+                            normalized_values.append(normalized_v)
+
+                        # Aggregate normalized metrics with the mean
+                        aggregated_score = sum(normalized_values) / len(normalized_values)
+                        comparison["aggregated_normalized_mean"] = aggregated_score
+
+                        # Keep normalized metrics too
+                        for k, v in normalized_comparison.items():
+                            comparison[f"{k}_normalized"] = v
+
+                        # Add comparison/ prefix to all keys
                         comparison = {f"comparison/{k}": v for k, v in comparison.items()}
 
                         if logger is not None:
