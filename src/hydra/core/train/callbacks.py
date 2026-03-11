@@ -109,7 +109,7 @@ class DDMSampleEvaluationCallback(Callback):
                             normalized_values.append(normalized_v)
 
                         # Aggregate normalized metrics with the mean
-                        aggregated_score = sum(normalized_values) / len(normalized_values)
+                        aggregated_score = sum(abs(v) for v in normalized_values) / len(normalized_values)
                         comparison["aggregated_normalized_mean"] = aggregated_score
 
                         # Keep normalized metrics too
