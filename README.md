@@ -78,14 +78,14 @@ The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` 
   <tbody>
     <tr>
       <td>S</td>
-      <td>4</td>
       <td>2</td>
+      <td>4</td>
       <td>256</td>
     </tr>
     <tr>
       <td>M</td>
-      <td>8</td>
       <td>3</td>
+      <td>8</td>
       <td>512</td>
     </tr>
     </tr>
