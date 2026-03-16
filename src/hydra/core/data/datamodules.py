@@ -158,12 +158,12 @@ class HypergraphDataModule(L.LightningDataModule):
         # The validation size is only relevant if train_split == val_split, in which case we need to split the training set into a training and validation set
         # If it is >= 1, we interpret it as an absolute number of examples, if it is < 1, we interpret it as a proportion of the dataset
         # If it is None, we set it to 0.1 by default
-        self.val_size = 0.1 if val_size == None else int(val_size) if val_size >= 1 else val_size
-
+        self.val_size = float(0.1) if val_size == None else int(val_size) if val_size >= 1 else float(val_size)
+    
         # Additional
         self.dataset_dir = data_dir / dataset_name
         self.processed_dataset_dir = self.dataset_dir / "processed" / f"n{node_feature}_h{hyperedge_feature}"
-        self.transformed_dataset_dir = self.dataset_dir / "transformed" / f"sph{samples_per_hyperedge}" / f"wl{walk_length}" / f"p{p}" / f"q{q}" / f"a{alpha}" / f"{self.val_size if train_split == val_split else 'fullvalsize'}" / f"n{node_feature}_h{hyperedge_feature}"
+        self.transformed_dataset_dir = self.dataset_dir / "transformed" / f"sph{samples_per_hyperedge}" / f"wl{walk_length}" / f"p{p}" / f"q{q}" / f"a{alpha}" / f"{self.val_size}" / f"n{node_feature}_h{hyperedge_feature}"
 
     def prepare_data(self):
         # Loading the dataset from HuggingFace Datasets
@@ -197,7 +197,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                             p=self.p,
                                             q=self.q,
                                             alpha=self.alpha,
-                                            r=0.05,
+                                            r=0.1,
                                             num_workers=self.num_workers - 1),
                                         cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
                                         writer_batch_size=500,
@@ -219,11 +219,8 @@ class HypergraphDataModule(L.LightningDataModule):
                 split_dataset = train_dataset.train_test_split(test_size=self.val_size, shuffle=True)
                 train_dataset = split_dataset["train"]
                 val_dataset = split_dataset["test"]
-            elif len(train_dataset) == 1 and self.val_size > 0:
-                val_dataset = train_dataset
-                train_dataset = train_dataset.select([])
             else:
-                val_dataset = train_dataset.select([])
+                val_dataset = train_dataset
         else:
             val_dataset = dataset[self.val_split]
 
