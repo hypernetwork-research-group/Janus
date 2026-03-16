@@ -186,7 +186,7 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         if not self.processed_dataset_dir.exists():
-            dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
+            dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="500MB")
 
         # Here, we build a set of random walks for each hypergraph,
         # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
@@ -198,7 +198,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                             q=self.q,
                                             alpha=self.alpha,
                                             r=0.05,
-                                            num_workers=2),#max(1, self.num_workers)),
+                                            num_workers=max(1, self.num_workers)),
                                         cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
                                         writer_batch_size=500,
                                         keep_in_memory=False,
@@ -235,7 +235,7 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # Similarly to the processed dataset, we save the transformed dataset to disk
         if not self.transformed_dataset_dir.exists():
-            dataset.save_to_disk(self.transformed_dataset_dir, max_shard_size="1GB")
+            dataset.save_to_disk(self.transformed_dataset_dir, max_shard_size="500MB")
 
     def setup(self, stage):
         # Drop edge_features_column
