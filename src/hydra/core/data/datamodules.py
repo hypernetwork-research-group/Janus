@@ -197,7 +197,8 @@ class HypergraphDataModule(L.LightningDataModule):
                                             p=self.p,
                                             q=self.q,
                                             alpha=self.alpha,
-                                            num_workers=max(1, self.num_workers)),
+                                            r=0.05,
+                                            num_workers=1),#max(1, self.num_workers)),
                                         cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
                                         writer_batch_size=500,
                                         keep_in_memory=False,
@@ -212,28 +213,25 @@ class HypergraphDataModule(L.LightningDataModule):
             for k, v in dataset.items()
         })
 
-        # TODO: Adjust train, validation split logic
-        # If the training and validation splits are the same, we need to split the transformed training set into a training and validation set
+        train_dataset = dataset[self.train_split]
         if self.train_split == self.val_split:
-            if len(dataset[self.train_split]) > 1 and self.val_size > 0:
-                temp_ = dataset[self.train_split].train_test_split(test_size=self.val_size, shuffle=True) # TODO: pass seed
+            if len(train_dataset) > 1 and self.val_size > 0:
+                split_dataset = train_dataset.train_test_split(test_size=self.val_size, shuffle=True)
+                train_dataset = split_dataset["train"]
+                val_dataset = split_dataset["test"]
+            elif len(train_dataset) == 1 and self.val_size > 0:
+                val_dataset = train_dataset
+                train_dataset = train_dataset.select([])
             else:
-                temp_ = DatasetDict({
-                    "train": dataset[self.train_split],
-                    "test": dataset[self.train_split],
-                })
-            # Rename the splits to train and val
-            dataset = DatasetDict({
-                "train": dataset[self.train_split],
-                "val": temp_["test"],
-                "predict": dataset[self.predict_split],
-            })
-        else: # If the training and validation splits are different, we can directly use them without splitting
-            dataset = DatasetDict({
-                "train": dataset[self.train_split],
-                "val": dataset[self.val_split],
-                "predict": dataset[self.predict_split],
-            })
+                val_dataset = train_dataset.select([])
+        else:
+            val_dataset = dataset[self.val_split]
+
+        dataset = DatasetDict({
+            "train": train_dataset,
+            "val": val_dataset,
+            "predict": dataset[self.predict_split],
+        })
 
         # Similarly to the processed dataset, we save the transformed dataset to disk
         if not self.transformed_dataset_dir.exists():

@@ -48,6 +48,7 @@ def _init_walk_worker(
     p: float,
     q: float,
     alpha: float,
+    r: float,
     seed: int,
 ):
     # Big read-only objects (sent once per worker)
@@ -62,6 +63,7 @@ def _init_walk_worker(
     _WALK_CTX["p"] = p
     _WALK_CTX["q"] = q
     _WALK_CTX["alpha"] = alpha
+    _WALK_CTX["r"] = r
     _WALK_CTX["seed"] = seed
 
 def _walk_task(sources_chunk):
@@ -76,6 +78,7 @@ def _walk_task(sources_chunk):
         _WALK_CTX["p"],
         _WALK_CTX["q"],
         _WALK_CTX["alpha"],
+        _WALK_CTX["r"],
         _WALK_CTX["seed"],
         sources_chunk,
         _WALK_CTX["neighborhoods"],
@@ -93,6 +96,7 @@ def transform(
     p: float,
     q: float,
     alpha: float,
+    r: float,
     num_workers: int,
     seed: int = 42,
 ):
@@ -104,6 +108,9 @@ def transform(
             logger.info("Processing hypergraph entry")
 
             ridx_hif_dict = hypergraph_entry["hif_dict"]
+            if hasattr(ridx_hif_dict, "__getitem__"):
+                ridx_hif_dict = ridx_hif_dict[0] # Unwrap from tuple if needed
+            
             node_features = torch.tensor(hypergraph_entry["node_features"], dtype=torch.float)
             hyperedge_features = torch.tensor(hypergraph_entry["hyperedge_features"], dtype=torch.float)
 
@@ -160,6 +167,7 @@ def transform(
                         p,
                         q,
                         alpha,
+                        r,
                         seed,
                     ),
                 ) as executor:

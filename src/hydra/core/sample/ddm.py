@@ -65,17 +65,20 @@ def sample_ddm(
 
     generated_hypergraphs = []
 
+    tau_multiplier = 1.0 + 1e-6
     for d in dataset:
         ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
         logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
         hyperedges = set()
+        tau = 1.0
         with tqdm(total=len(ds_hypergraph.edges), desc="Sampling hyperedges") as pbar:
             while len(hyperedges) < len(ds_hypergraph.edges):
+                pbar.set_postfix_str(f"tau = {tau}")
                 predictions = []
                 with torch.no_grad():
                     for batch in datamodule.predict_dataloader():
                         batch = {key: value.to(device) for key, value in batch.items()}
-                        incidence_matrices, *_ = model.predict_step(batch, 0)
+                        incidence_matrices, *_ = model.predict_step(batch, 0, tau)
                         predictions.append(incidence_matrices.cpu())
 
                 for incidence_matrices in predictions:
@@ -97,6 +100,7 @@ def sample_ddm(
 
                 pbar.update(len(hyperedges) - pbar.n)
                 logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
+                tau = tau * tau_multiplier
 
         hyperedges = list(hyperedges)
         hypergraph = xgi.Hypergraph(hyperedges)

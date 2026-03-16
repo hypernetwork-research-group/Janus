@@ -272,50 +272,6 @@ from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
 
 type SchedulerType = Literal["ddpm", "ddim"]
 
-def compute_snr(noise_scheduler: DDPMScheduler, timesteps: torch.LongTensor) -> torch.Tensor:
-    """
-    Returns SNR(t) for each element in `timesteps` (shape: [batch]).
-    """
-    alphas_cumprod = noise_scheduler.alphas_cumprod.to(device=timesteps.device)  # [num_train_timesteps]
-    sqrt_alphas_cumprod = alphas_cumprod.sqrt()
-    sqrt_one_minus_alphas_cumprod = (1.0 - alphas_cumprod).sqrt()
-
-    # Gather per-sample values
-    alpha = sqrt_alphas_cumprod[timesteps].float()                  # [batch]
-    sigma = sqrt_one_minus_alphas_cumprod[timesteps].float()        # [batch]
-
-    # SNR = (alpha / sigma)^2
-    snr = (alpha / sigma) ** 2
-    return snr  # [batch]
-
-def min_snr_weighted_v_mse_loss(
-    noise_scheduler: DDPMScheduler,
-    model_pred_v: torch.Tensor,   # UNet output (v), shape [B,C,H,W]
-    latents: torch.Tensor,        # clean latents x0, shape [B,C,H,W]
-    noise: torch.Tensor,          # eps, shape [B,C,H,W]
-    timesteps: torch.LongTensor,  # [B]
-    snr_gamma: float = 5.0,
-) -> torch.Tensor:
-    assert noise_scheduler.config.prediction_type == "v_prediction", \
-        "This loss is for v_prediction. Set scheduler.config.prediction_type='v_prediction'."
-
-    # Target for v-prediction (Diffusers provides this convenience method)
-    target_v = noise_scheduler.get_velocity(latents, noise, timesteps)  # [B,C,H,W]
-
-    # Per-pixel MSE (no reduction yet)
-    loss = F.mse_loss(model_pred_v.float(), target_v.float(), reduction="none")  # [B,C,H,W]
-
-    # Reduce to per-sample loss
-    loss = loss.mean(dim=tuple(range(1, loss.ndim)))  # [B]
-
-    # Compute Min-SNR-γ weights for v-prediction:
-    # w(t) = min(SNR(t), gamma) / (SNR(t) + 1)
-    snr = compute_snr(noise_scheduler, timesteps)  # [B]
-    weights = torch.minimum(snr, torch.full_like(snr, snr_gamma)) / (snr + 1.0)  # [B]
-
-    # Apply weights and average
-    return (loss * weights).mean()
-
 class DiffusionTransformer(L.LightningModule):
 
     def __init__(self,
@@ -450,14 +406,7 @@ class DiffusionTransformer(L.LightningModule):
         else:
             x_loss = 0.0
 
-        y_loss = min_snr_weighted_v_mse_loss(
-            noise_scheduler=self.train_noise_scheduler,
-            model_pred_v=y_v_pred,
-            latents=y_z,
-            noise=y_noise,
-            timesteps=t,
-            snr_gamma=5.0
-        )
+        y_loss = F.mse_loss(y_v_pred, y_target)
 
         # y_loss = F.mse_loss(y_v_pred, y_target)
         self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=False)
@@ -469,7 +418,7 @@ class DiffusionTransformer(L.LightningModule):
     def sample(self, batch_size: int, num_nodes: int, num_hyperedges: int):
         pass
 
-    def predict_step(self, batch, batch_idx):
+    def predict_step(self, batch, batch_idx, tau: float = 1.0):
         z_x_T = batch['node_features']
         z_y_T = batch['hyperedge_features']
         
@@ -495,7 +444,7 @@ class DiffusionTransformer(L.LightningModule):
             z_y_T = y_step_out.prev_sample
 
         h_logits = self.bvae.hypergraph_decoder(z_x_T, z_y_T)  # Decode
-        incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample() # Sample hard incidence matrices
+        incidence_matrices = torch.distributions.Categorical(logits=h_logits / tau).sample() # Sample hard incidence matrices
         if self.bvae.vertex_encoding:
             x_rec = self.bvae.node_features_decoder(z_x_T, incidence_matrices)             # Produce node representations
         else:

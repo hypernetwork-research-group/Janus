@@ -6,13 +6,14 @@ import xgi
 
 def metropolis_hastings_biased_random_walk(args):
     # TODO: Generalize random walk to k-th order
-    G, num_paths, walk_length, p, q, a, seed, sources, neighborhoods, members, weights = args
+    G, num_paths, walk_length, p, q, a, r, seed, sources, neighborhoods, members, weights = args
     assert p > 0, "p must be positive"
     assert q > 0, "q must be positive"
     walks = []
     rng = random.Random(seed)
     inv_p = 1 / p
     inv_q = 1 / q
+    all_nodes = set(G.nodes)
     for source in sources:
         for _ in range(num_paths):
             walk_touched_nodes = set()
@@ -22,6 +23,16 @@ def metropolis_hastings_biased_random_walk(args):
             touched_nodes = members[current]
             walk_touched_nodes.update(touched_nodes)
             for _ in range(walk_length - 1):
+                if rng.random() < r:
+                    # Go to a random node
+                    next_node = rng.choice(list(all_nodes))
+                    previous = current
+                    current = next_node
+                    if current not in walk:
+                        touched_nodes = members[current]
+                        walk_touched_nodes.update(touched_nodes)
+                    walk.append(current) # Insert at the beginning
+                    continue
                 neighbors = neighborhoods[current]
                 if not neighbors:
                     # Keep looping

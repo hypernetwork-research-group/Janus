@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import lightning as L
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
@@ -17,7 +19,8 @@ def train_bvae(
     early_stopping_config: EarlyStoppingConfig,
     vertex_encoding: bool,
     kl_weight: float,
-    latent_dim: int | None
+    latent_dim: int | None,
+    ckpt_path: Path | str | None
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                                       node_feature=huggingface_datasets_config.node_feature,
@@ -93,4 +96,6 @@ def train_bvae(
         latent_dim=latent_dim
     )
 
-    trainer.fit(model, datamodule=datamodule)
+    trainer.fit(model,
+                datamodule=datamodule,
+                ckpt_path=ckpt_path)

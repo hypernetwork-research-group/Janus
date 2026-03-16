@@ -19,6 +19,7 @@ def train_ddm(
     model_size_config: str,
     T: int,
     bvae_ckpt: Path | str,
+    ckpt_path: Path | str | None = None,
 ):
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                                       node_feature=huggingface_datasets_config.node_feature,
@@ -100,4 +101,6 @@ def train_ddm(
         model_size_config=model_size_config,
     )
 
-    trainer.fit(model=model, datamodule=datamodule)
+    trainer.fit(model=model,
+                datamodule=datamodule,
+                ckpt_path=ckpt_path)

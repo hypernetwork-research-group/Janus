@@ -32,6 +32,8 @@ def train_callback(
     weight_decay: Annotated[float | None, typer.Option("--weight-decay", help="Weight decay (L2 regularization) for the optimizer. If not set, model defaults are used.")] = None,
     # EarlyStoppingConfig options
     patience: Annotated[int, typer.Option("--patience", help="Number of epochs with no improvement after which training will be stopped.")] = 100,
+    # Resume training
+    ckpt_path: Annotated[str | None, typer.Option("--ckpt", help="Path to resume the checkpoint")] = None,
 ):
     """Common options for data loading."""
     # ctx.obj is the standard place to store shared state across commands :contentReference[oaicite:3]{index=3}
@@ -49,6 +51,7 @@ def train_callback(
     ctx.obj["optimizer_config"] = OptimizerConfig(learning_rate=learning_rate,
                                                   weight_decay=weight_decay)
     ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=patience)
+    ctx.obj["ckpt_path"] = ckpt_path
 
 from hydra.core.train.bvae import train_bvae
 
@@ -66,6 +69,7 @@ def bvae(ctx: typer.Context,
     model_size_config: str = ctx.obj["model_size_config"]
     optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
     early_stopping_config: EarlyStoppingConfig = ctx.obj["early_stopping_config"]
+    ckpt_path = ctx.obj["ckpt_path"]
     train_bvae(datamodule_config=datamodule_config,
               random_walk_config=random_walk_config,
               dataloader_config=dataloader_config,
@@ -76,7 +80,8 @@ def bvae(ctx: typer.Context,
               early_stopping_config=early_stopping_config,
               vertex_encoding=vertex_encoding,
               kl_weight=kl_weight,
-              latent_dim=latent_dim)
+              latent_dim=latent_dim,
+              ckpt_path=ckpt_path)
 
 from hydra.core.train.ddm import train_ddm
 
@@ -92,7 +97,7 @@ def ddm(ctx: typer.Context,
     trainer_config: TrainerConfig = ctx.obj["trainer_config"]
     optimizer_config: OptimizerConfig = ctx.obj["optimizer_config"]
     model_size_config: str = ctx.obj["model_size_config"]
-
+    ckpt_path = ctx.obj["ckpt_path"]
     train_ddm(datamodule_config=datamodule_config,
               random_walk_config=random_walk_config,
               dataloader_config=dataloader_config,
@@ -101,4 +106,5 @@ def ddm(ctx: typer.Context,
               huggingface_datasets_config=huggingface_datasets_config,
               model_size_config=model_size_config,
               bvae_ckpt=bvae_ckpt,
-              T=T)
+              T=T,
+              ckpt_path=ckpt_path)
