@@ -21,6 +21,8 @@ def train_ddm(
     bvae_ckpt: Path | str,
     ckpt_path: Path | str | None = None,
 ):
+    bvae = HypergraphBetaVAE.load_from_checkpoint(str(bvae_ckpt))
+    
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                                       node_feature=huggingface_datasets_config.node_feature,
                                       hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
@@ -38,12 +40,12 @@ def train_ddm(
                         num_workers=dataloader_config.num_workers,
                         persistent_workers=dataloader_config.persistent_workers,
                         batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-                        val_size=datamodule_config.val_size,)
+                        val_size=datamodule_config.val_size,
+                        drop_last=bvae.vertex_encoding or dataloader_config.drop_last)
 
     # Here we should determine the model name:
     # DDM-HyDRA-{model_size}/vertex_encoding
 
-    bvae = HypergraphBetaVAE.load_from_checkpoint(str(bvae_ckpt))
 
     model_name = f"DDM-HyDRA{'-V' if bvae.vertex_encoding else ''}-{model_size_config}" # TODO: This should probably be defined in the model
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"
