@@ -31,8 +31,9 @@ def process(batch, node_feature: str, hyperedge_feature: str, add_hif_dict: bool
         "node_features": X,
         "hyperedge_features": Y,
     }
+
     if add_hif_dict:
-        out["hif_dict"] = hif_dict,
+        out["hif_dict"] = dict(hif_dict),
 
     return out
 
@@ -107,9 +108,7 @@ def transform(
         for hypergraph_entry in dataset:
             logger.info("Processing hypergraph entry")
 
-            ridx_hif_dict = hypergraph_entry["hif_dict"]
-            if hasattr(ridx_hif_dict, "__getitem__"):
-                ridx_hif_dict = ridx_hif_dict[0] # Unwrap from tuple if needed
+            ridx_hif_dict = hypergraph_entry["hif_dict"][0]
             
             node_features = torch.tensor(hypergraph_entry["node_features"], dtype=torch.float)
             hyperedge_features = torch.tensor(hypergraph_entry["hyperedge_features"], dtype=torch.float)
