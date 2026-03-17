@@ -418,14 +418,12 @@ class DiffusionTransformer(L.LightningModule):
     def sample(self, batch_size: int, num_nodes: int, num_hyperedges: int):
         pass
 
-    def predict_step(self, batch, batch_idx, tau: float = 1.0):
+    def predict_step(self, batch, batch_idx, walk_length: int, tau: float = 1.0):
         z_x_T = batch['node_features']
-        z_y_T = batch['hyperedge_features']
-        
-        z_y_T = torch.randn_like(z_y_T)
 
         B, N, F = z_x_T.size()
-        _, M, _ = z_y_T.size()
+
+        z_y_T = torch.randn(B, walk_length, F, device=self.device)
 
         scheduler = self.sampling_noise_scheduler
         self.sampling_noise_scheduler.set_timesteps(self.num_inference_steps, device=self.device)

@@ -62,7 +62,7 @@ class FeaturesDataModule(L.LightningDataModule):
         # The `hif_dict` column will contain the hif representation of the hypergraph, which will be used in the next step to reconstruct the hypergraph and perform random walks on it
         dataset = dataset.map(process,
                          load_from_cache_file=True,
-                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences"],
+                         remove_columns=["metadata", "network-type", "nodes", "edges", "incidences", "hyperedge_feature"],
                          fn_kwargs={
                              "node_feature": self.node_feature,
                              "hyperedge_feature": self.hyperedge_feature,
@@ -74,7 +74,7 @@ class FeaturesDataModule(L.LightningDataModule):
 
         if not self.node_features_dataset_dir.exists():
             dataset.save_to_disk(self.node_features_dataset_dir)
-    
+
     def setup(self, stage):
         self.dataset = load_from_disk(self.node_features_dataset_dir).with_format("torch")
 
