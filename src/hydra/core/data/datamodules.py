@@ -217,7 +217,7 @@ class HypergraphDataModule(L.LightningDataModule):
         if self.train_split == self.val_split:
             if len(train_dataset) > 1 and self.val_size > 0:
                 split_dataset = train_dataset.train_test_split(test_size=self.val_size, shuffle=True)
-                train_dataset = split_dataset["train"]
+                train_dataset = train_dataset
                 val_dataset = split_dataset["test"]
             else:
                 val_dataset = train_dataset
