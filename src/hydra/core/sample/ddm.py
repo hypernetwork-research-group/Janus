@@ -78,7 +78,7 @@ def sample_ddm(
                 with torch.no_grad():
                     for batch in datamodule.predict_dataloader():
                         batch = {key: value.to(device) for key, value in batch.items()}
-                        incidence_matrices, *_ = model.predict_step(batch, 0, tau)
+                        incidence_matrices, *_ = model.predict_step(batch, 0, walk_length, tau)
                         predictions.append(incidence_matrices.cpu())
 
                 for incidence_matrices in predictions:

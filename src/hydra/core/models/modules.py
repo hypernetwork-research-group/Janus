@@ -414,16 +414,12 @@ class DiffusionTransformer(L.LightningModule):
         self.log("training/loss", loss, prog_bar=True, on_step=True, on_epoch=False)
         return loss
 
-    @torch.no_grad()
-    def sample(self, batch_size: int, num_nodes: int, num_hyperedges: int):
-        pass
-
     def predict_step(self, batch, batch_idx, walk_length: int, tau: float = 1.0):
         z_x_T = batch['node_features']
 
         B, N, F = z_x_T.size()
 
-        z_y_T = torch.randn(B, walk_length, F, device=self.device)
+        z_y_T = torch.randn(B, int(walk_length), F, device=self.device)
 
         scheduler = self.sampling_noise_scheduler
         self.sampling_noise_scheduler.set_timesteps(self.num_inference_steps, device=self.device)
@@ -453,11 +449,13 @@ class DiffusionTransformer(L.LightningModule):
 
         return incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T
 
+    @torch.inference_mode()
     def sample(self, num_nodes: int, num_hyperedges: int, walk_length: int, batch_size: int):
         assert self.bvae.vertex_encoding, "Sampling is only supported when vertex encoding is enabled."
         with tqdm(total=num_hyperedges, desc="Sampling hyperedges", leave=False) as pbar:
             pass
 
+    @torch.inference_mode()
     def sample_conditional(self, node_features: torch.Tensor, num_hyperedges: int, walk_length: int, batch_size: int):
         assert not self.bvae.vertex_encoding, "Conditional sampling is only supported when vertex encoding is disabled."
         pass
