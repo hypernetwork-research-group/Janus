@@ -167,6 +167,8 @@ class HypergraphDataModule(L.LightningDataModule):
         self.transformed_dataset_dir = self.dataset_dir / "transformed" / f"sph{samples_per_hyperedge}" / f"wl{walk_length}" / f"p{p}" / f"q{q}" / f"a{alpha}" / f"{self.val_size}" / f"n{node_feature}_h{hyperedge_feature}"
 
     def prepare_data(self):
+        if self.processed_dataset_dir.exists() and self.transformed_dataset_dir.exists():
+            return            
         # Loading the dataset from HuggingFace Datasets
         # This will be stored in the HuggingFace Datasets cache directory, so it won't be redownloaded every time
         dataset = load_dataset(self.dataset_name,
@@ -186,8 +188,7 @@ class HypergraphDataModule(L.LightningDataModule):
                          })
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
-        if not self.processed_dataset_dir.exists():
-            dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
+        dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
 
         # Here, we build a set of random walks for each hypergraph,
         # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
@@ -232,8 +233,7 @@ class HypergraphDataModule(L.LightningDataModule):
         })
 
         # Similarly to the processed dataset, we save the transformed dataset to disk
-        if not self.transformed_dataset_dir.exists():
-            dataset.save_to_disk(self.transformed_dataset_dir, max_shard_size="1GB")
+        dataset.save_to_disk(self.transformed_dataset_dir, max_shard_size="1GB")
 
     def setup(self, stage):
         # Drop edge_features_column
