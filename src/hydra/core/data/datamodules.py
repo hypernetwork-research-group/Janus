@@ -101,12 +101,21 @@ class FeaturesDataModule(L.LightningDataModule):
 
     def predict_dataloader(self):
         dataset = self.dataset
+        if len(dataset) < self.batch_size:
+            sampler = torch.utils.data.RandomSampler(
+                dataset,
+                replacement=True,
+                num_samples=self.batch_size
+            )
+        else:
+            sampler = None
         return torch.utils.data.DataLoader(dataset[self.predict_split],
                                            batch_size=self.batch_size,
                                            pin_memory=self.pin_memory,
                                            num_workers=self.num_workers,
                                            persistent_workers=self.persistent_workers,
-                                           shuffle=False)
+                                           shuffle=False,
+                                           sampler=sampler)
 
 class HypergraphDataModule(L.LightningDataModule):
 
