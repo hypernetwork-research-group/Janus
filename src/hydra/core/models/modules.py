@@ -269,6 +269,7 @@ class HypergraphBetaVAE(L.LightningModule):
         return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
 from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
+from .utils import min_snr_weighted_v_mse_loss
 
 type SchedulerType = Literal["ddpm", "ddim"]
 
@@ -400,13 +401,29 @@ class DiffusionTransformer(L.LightningModule):
         x_v_pred, y_v_pred = self.forward(x_t, y_t, t.unsqueeze(-1))
 
         if self.bvae.vertex_encoding:
-            x_loss = F.mse_loss(x_v_pred, x_target)
+            # x_loss = F.mse_loss(x_v_pred, x_target)
+            x_loss = min_snr_weighted_v_mse_loss(
+                noise_scheduler=self.train_noise_scheduler,
+                model_pred_v=x_v_pred,
+                latents=x_z,
+                noise=x_noise,
+                timesteps=t,
+                snr_gamma=5.0
+            )
             self.log("training/x_loss", x_loss.item(), prog_bar=False, on_step=True, on_epoch=False)
 
         else:
             x_loss = 0.0
 
-        y_loss = F.mse_loss(y_v_pred, y_target)
+        # y_loss = F.mse_loss(y_v_pred, y_target)
+        y_loss = min_snr_weighted_v_mse_loss(
+            noise_scheduler=self.train_noise_scheduler,
+            model_pred_v=y_v_pred,
+            latents=y_z,
+            noise=y_noise,
+            timesteps=t,
+            snr_gamma=5.0
+        )
 
         # y_loss = F.mse_loss(y_v_pred, y_target)
         self.log("training/y_loss", y_loss.item(), prog_bar=False, on_step=True, on_epoch=False)

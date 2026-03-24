@@ -64,3 +64,49 @@ def batch_index_contrastive_loss(
     else:
         # No valid anchors -> return 0 (keeps training running; gradient is zero)
         return x.new_zeros(())
+
+from diffusers import DDPMScheduler
+
+def compute_snr(noise_scheduler: DDPMScheduler, timesteps: torch.LongTensor) -> torch.Tensor:
+    """
+    Returns SNR(t) for each element in `timesteps` (shape: [batch]).
+    """
+    alphas_cumprod = noise_scheduler.alphas_cumprod.to(device=timesteps.device)  # [num_train_timesteps]
+    sqrt_alphas_cumprod = alphas_cumprod.sqrt()
+    sqrt_one_minus_alphas_cumprod = (1.0 - alphas_cumprod).sqrt()
+
+    # Gather per-sample values
+    alpha = sqrt_alphas_cumprod[timesteps].float()                  # [batch]
+    sigma = sqrt_one_minus_alphas_cumprod[timesteps].float()        # [batch]
+
+    # SNR = (alpha / sigma)^2
+    snr = (alpha / sigma) ** 2
+    return snr  # [batch]
+
+def min_snr_weighted_v_mse_loss(
+    noise_scheduler: DDPMScheduler,
+    model_pred_v: torch.Tensor,   # UNet output (v), shape [B,C,H,W]
+    latents: torch.Tensor,        # clean latents x0, shape [B,C,H,W]
+    noise: torch.Tensor,          # eps, shape [B,C,H,W]
+    timesteps: torch.LongTensor,  # [B]
+    snr_gamma: float = 5.0,
+) -> torch.Tensor:
+    assert noise_scheduler.config.prediction_type == "v_prediction", \
+        "This loss is for v_prediction. Set scheduler.config.prediction_type='v_prediction'."
+
+    # Target for v-prediction (Diffusers provides this convenience method)
+    target_v = noise_scheduler.get_velocity(latents, noise, timesteps)  # [B,C,H,W]
+
+    # Per-pixel MSE (no reduction yet)
+    loss = F.mse_loss(model_pred_v.float(), target_v.float(), reduction="none")  # [B,C,H,W]
+
+    # Reduce to per-sample loss
+    loss = loss.mean(dim=tuple(range(1, loss.ndim)))  # [B]
+
+    # Compute Min-SNR-γ weights for v-prediction:
+    # w(t) = min(SNR(t), gamma) / (SNR(t) + 1)
+    snr = compute_snr(noise_scheduler, timesteps)  # [B]
+    weights = torch.minimum(snr, torch.full_like(snr, snr_gamma)) / (snr + 1.0)  # [B]
+
+    # Apply weights and average
+    return (loss * weights).mean()
