@@ -198,7 +198,7 @@ def hyperedge_portrait(H):
     dia = 0
     rows = []  # store (m, counter) per source; much smaller than storing all dist dicts
 
-    n_jobs = 32  # os.cpu_count() or 1
+    n_jobs = os.cpu_count() - 1 if os.cpu_count() > 1 else 1
 
     # Use fork on POSIX to avoid pickling/copying the whole graph to each worker.
     start_method = "fork" if os.name != "nt" else "spawn"
