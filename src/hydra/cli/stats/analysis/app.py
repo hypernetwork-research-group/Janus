@@ -88,6 +88,7 @@ def parse(
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = dataset_name
     hypergraph['name'] = split
+    hypergraph['kind'] = 'reference'
     path = root_dir / dataset_name / f"{split}.hif.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
