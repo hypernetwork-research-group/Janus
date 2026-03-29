@@ -40,74 +40,87 @@ def sample_ddm(
 
     model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
 
-    datamodule = FeaturesDataModule(
-        dataset_name=huggingface_datasets_config.dataset_name,
-        node_feature=huggingface_datasets_config.node_feature,
-        hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
-        data_dir=datamodule_config.data_dir,
-        cache_dir=huggingface_datasets_config.cache_dir,
-        train_split=datamodule_config.train_split,
-        val_split=datamodule_config.val_split,
-        predict_split=datamodule_config.predict_split,
-        pin_memory=dataloader_config.pin_memory,
-        num_workers=dataloader_config.num_workers,
-        persistent_workers=dataloader_config.persistent_workers,
-        batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
-    )
-    datamodule.prepare_data()
-    datamodule.setup("predict")
-
     dataset = load_dataset(
         huggingface_datasets_config.dataset_name,
         cache_dir=huggingface_datasets_config.cache_dir,
         split=datamodule_config.predict_split
     )
 
-    generated_hypergraphs = []
+    if not model.bvae.vertex_encoding:
+        datamodule = FeaturesDataModule(
+            dataset_name=huggingface_datasets_config.dataset_name,
+            node_feature=huggingface_datasets_config.node_feature,
+            hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
+            data_dir=datamodule_config.data_dir,
+            cache_dir=huggingface_datasets_config.cache_dir,
+            train_split=datamodule_config.train_split,
+            val_split=datamodule_config.val_split,
+            predict_split=datamodule_config.predict_split,
+            pin_memory=dataloader_config.pin_memory,
+            num_workers=dataloader_config.num_workers,
+            persistent_workers=dataloader_config.persistent_workers,
+            batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
+        )
+        datamodule.prepare_data()
+        datamodule.setup("predict")
 
-    tau_multiplier = 1.0 + 1e-6
-    for d in dataset:
-        ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
-        logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
-        hyperedges = set()
-        tau = 1.0
-        with tqdm(total=len(ds_hypergraph.edges), desc="Sampling hyperedges") as pbar:
-            while len(hyperedges) < len(ds_hypergraph.edges):
-                pbar.set_postfix_str(f"tau = {tau}")
-                predictions = []
-                with torch.no_grad():
-                    for batch in datamodule.predict_dataloader():
-                        batch = {key: value.to(device) for key, value in batch.items()}
-                        incidence_matrices, *_ = model.predict_step(batch, 0, walk_length, tau)
-                        predictions.append(incidence_matrices.cpu())
+        generated_hypergraphs = []
 
-                for incidence_matrices in predictions:
-                    for incidence_matrix in incidence_matrices:
-                        for col in incidence_matrix.T:
-                            nodes = torch.nonzero(col).squeeze().tolist()
-                            if isinstance(nodes, int):
-                                nodes = [nodes]
-                            if len(nodes) < 1:
-                                continue
-                            nodes = tuple(sorted(nodes))
-                            hyperedges.add(nodes)
+        tau_multiplier = 1.0 + 1e-6
+        for d in dataset:
+            ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
+            logger.info(f"Sampling hypergraph with {ds_hypergraph.num_nodes} nodes and {ds_hypergraph.num_edges} hyperedges from {model_name}...")
+            hyperedges = set()
+            tau = 1.0
+            with tqdm(total=len(ds_hypergraph.edges), desc="Sampling hyperedges") as pbar:
+                while len(hyperedges) < len(ds_hypergraph.edges):
+                    pbar.set_postfix_str(f"tau = {tau}")
+                    predictions = []
+                    with torch.no_grad():
+                        for batch in datamodule.predict_dataloader():
+                            batch = {key: value.to(device) for key, value in batch.items()}
+                            incidence_matrices, *_ = model.predict_step(batch, 0, walk_length, tau)
+                            predictions.append(incidence_matrices.cpu())
+
+                    for incidence_matrices in predictions:
+                        for incidence_matrix in incidence_matrices:
+                            for col in incidence_matrix.T:
+                                nodes = torch.nonzero(col).squeeze().tolist()
+                                if isinstance(nodes, int):
+                                    nodes = [nodes]
+                                if len(nodes) < 1:
+                                    continue
+                                nodes = tuple(sorted(nodes))
+                                hyperedges.add(nodes)
+                                if len(hyperedges) >= len(ds_hypergraph.edges):
+                                    break
                             if len(hyperedges) >= len(ds_hypergraph.edges):
                                 break
                         if len(hyperedges) >= len(ds_hypergraph.edges):
                             break
-                    if len(hyperedges) >= len(ds_hypergraph.edges):
-                        break
 
-                pbar.update(len(hyperedges) - pbar.n)
-                logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
-                tau = tau * tau_multiplier
+                    pbar.update(len(hyperedges) - pbar.n)
+                    logger.info(f"Sampled {len(hyperedges)} hyperedges so far...")
+                    tau = tau * tau_multiplier
 
-        hyperedges = list(hyperedges)
-        hypergraph = xgi.Hypergraph(hyperedges)
-        hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
-        hypergraph['name'] = model_name
-        hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
+            hyperedges = list(hyperedges)
+            hypergraph = xgi.Hypergraph(hyperedges)
+            hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+            hypergraph['name'] = model_name
+            hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
 
-        generated_hypergraphs.append(hypergraph)
+            generated_hypergraphs.append(hypergraph)
+    
+    else:
+        generated_hypergraphs = []
+        for d in dataset:
+            ds_hypergraph = xgi.from_hif_dict(d, nodetype=int, edgetype=int)
+            generated_hypergraph = model.sample_unconditional(
+                num_nodes=ds_hypergraph.num_nodes,
+                num_hyperedges=ds_hypergraph.num_edges,
+                walk_length=walk_length,
+                batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
+            )
+            generated_hypergraphs.append(generated_hypergraph)
 
     return generated_hypergraphs
