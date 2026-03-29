@@ -4,10 +4,13 @@ import torch
 import torch.nn as nn
 from tqdm.rich import tqdm
 import lightning as L
+import numpy as np
 import torch.nn.functional as F
 import logging
 from diffusers import DDPMScheduler
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from sklearn.cluster import KMeans
+import xgi
 
 from .parameter_initialization import init_hypergraph_encoder, init_hypergraph_decoder, init_dit_weights
 from .components import DiT, HGAT, HypergraphDecoder
@@ -467,12 +470,83 @@ class DiffusionTransformer(L.LightningModule):
         return incidence_matrices, h_logits, x_rec, membership_mask, z_x_T, z_y_T
 
     @torch.inference_mode()
-    def sample(self, num_nodes: int, num_hyperedges: int, walk_length: int, batch_size: int):
-        assert self.bvae.vertex_encoding, "Sampling is only supported when vertex encoding is enabled."
+    def sample_unconditional(self,
+                             num_nodes: int,
+                             num_hyperedges: int,
+                             walk_length: int,
+                             batch_size: int,
+                             initial_tau: float = 1.0,
+                             tau_multiplier: float = 1 + 1e-12):
+        assert self.bvae.vertex_encoding, "Unconditional sampling is only supported when vertex encoding is enabled"
+        kmeans = KMeans(n_clusters=num_nodes)
+
+        embeddings = []
+        membership_masks = []
+        incidences = []
+
+        B, F = batch_size, self.bvae.latent_dim
+
+        tau = initial_tau
         with tqdm(total=num_hyperedges, desc="Sampling hyperedges", leave=False) as pbar:
-            pass
+            while True:
+                z_x_T = torch.randn(B, num_nodes, F, device=self.device)
+                generated_paths = self.predict_step(
+                    batch={
+                        'node_features': z_x_T,
+                    },
+                    batch_idx=0,
+                    walk_length=walk_length,
+                    tau=tau
+                )
+                for _, incidence_matrices, x_rec, membership_mask, _, _ in generated_paths:
+                    embeddings.append(x_rec)
+                    membership_masks.append(membership_mask)
+                    incidences.append(incidence_matrices)
+                # Assign cluster to each node based on kmeans clusters
+
+                # Prepare data for kmeans
+                np_embeddings = torch.cat(embeddings, dim=0).cpu().numpy()  # [B, num_nodes, F]
+                np_embeddings = np_embeddings.reshape(-1, np_embeddings.shape[-1]) # [B * num_nodes, F]
+                np_membership_masks = torch.cat(membership_masks, dim=0).cpu().float().numpy()  # [B, num_nodes]
+                np_membership_masks = np_membership_masks.reshape(-1)  # [B * num_nodes]
+                t_incidences = torch.cat(incidences, dim=0).cpu()  # [B, num_hyperedges, num_nodes]
+                kmeans = KMeans(n_clusters=num_nodes, random_state=0).fit(np_embeddings, sample_weight=np_membership_masks)
+
+                # At this point, the id of each node is the cluster assigned by kmeans
+                kmeans_labels = np.array(kmeans.labels_).reshape(-1, num_nodes)  # [B, num_nodes]
+                # TODO: To improve, do not assign same cluster to multiple nodes in the same hyperedge
+
+                # Collect hyperedges represented by cluster ids
+                hyperedges = set()
+                for incidence_matrix, labels in zip(t_incidences, kmeans_labels):
+                    for col in incidence_matrix.T:
+                        nodes = torch.nonzero(col).squeeze().tolist()
+                        if isinstance(nodes, int):
+                            nodes = [nodes]
+                        if len(nodes) < 1:
+                            continue
+                        cluster_ids = tuple(sorted(set(labels[nodes].tolist())))
+                        hyperedges.add(cluster_ids)
+                        if len(hyperedges) >= num_hyperedges:
+                            break
+                    if len(hyperedges) >= num_hyperedges:
+                        break
+                if len(hyperedges) >= num_hyperedges:
+                    logging.info(f"Generated {len(hyperedges)} hyperedges, stopping generation.")
+                    break
+                logging.info(f"Generated {len(hyperedges)} hyperedges, continuing generation.")
+                tau = tau * tau_multiplier
+            hypergraph = xgi.Hypergraph(list(hyperedges))
+            return hypergraph
 
     @torch.inference_mode()
-    def sample_conditional(self, node_features: torch.Tensor, num_hyperedges: int, walk_length: int, batch_size: int):
+    def sample_conditional(self,
+                           node_features: torch.Tensor,
+                           num_hyperedges: int,
+                           walk_length: int,
+                           batch_size: int,
+                           initial_tau: float = 1.0,
+                           tau_multiplier: float = 1 + 1e-12):
         assert not self.bvae.vertex_encoding, "Conditional sampling is only supported when vertex encoding is disabled."
-        pass
+        with tqdm(total=num_hyperedges, desc="Sampling hyperedges", leave=False) as pbar:
+            pass
