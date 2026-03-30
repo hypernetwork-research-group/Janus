@@ -208,7 +208,6 @@ def hyperedge_portrait(H):
         processes=n_jobs,
         initializer=_init_worker,
         initargs=(G, size_idx, s_max),
-        maxtasksperchild=200,  # helps keep worker memory stable on long runs
     ) as pool:
         for nodes in tqdm(CC, desc="Computing distances", leave=False):
             if not nodes:
