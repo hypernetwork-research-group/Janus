@@ -7,7 +7,7 @@ import lightning as L
 import numpy as np
 import torch.nn.functional as F
 import logging
-from diffusers import DDPMScheduler
+from diffusers import DDPMScheduler, DDIMScheduler
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.cluster import KMeans
 import xgi
@@ -303,7 +303,7 @@ class DiffusionTransformer(L.LightningModule):
         if self.inference_scheduler_type == "ddpm":
             self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config)
         elif self.inference_scheduler_type == "ddim":
-            self.sampling_noise_scheduler = DDPMScheduler.from_config(self.train_noise_scheduler.config, timestep_spacing="leading")
+            self.sampling_noise_scheduler = DDIMScheduler.from_config(self.train_noise_scheduler.config)
         else:
             raise ValueError(f"Invalid inference_scheduler_type: {self.inference_scheduler_type}. Must be one of {SchedulerType.__args__}")
         self.save_hyperparameters()
@@ -490,7 +490,7 @@ class DiffusionTransformer(L.LightningModule):
         with tqdm(total=num_hyperedges, desc="Sampling hyperedges", leave=False) as pbar:
             while True:
                 z_x_T = torch.randn(B, num_nodes, F, device=self.device)
-                generated_paths = self.predict_step(
+                incidence_matrices, _, x_rec, membership_mask, z_x_T, _ = self.predict_step(
                     batch={
                         'node_features': z_x_T,
                     },
@@ -498,10 +498,9 @@ class DiffusionTransformer(L.LightningModule):
                     walk_length=walk_length,
                     tau=tau
                 )
-                for _, incidence_matrices, x_rec, membership_mask, _, _ in generated_paths:
-                    embeddings.append(x_rec)
-                    membership_masks.append(membership_mask)
-                    incidences.append(incidence_matrices)
+                embeddings.append(x_rec)
+                membership_masks.append(membership_mask)
+                incidences.append(incidence_matrices)
                 # Assign cluster to each node based on kmeans clusters
 
                 # Prepare data for kmeans
@@ -535,6 +534,8 @@ class DiffusionTransformer(L.LightningModule):
                     logging.info(f"Generated {len(hyperedges)} hyperedges, stopping generation.")
                     break
                 logging.info(f"Generated {len(hyperedges)} hyperedges, continuing generation.")
+                print(f"Generated {len(hyperedges)} hyperedges, continuing generation.")
+                pbar.update(len(hyperedges))
                 tau = tau * tau_multiplier
             hypergraph = xgi.Hypergraph(list(hyperedges))
             return hypergraph
