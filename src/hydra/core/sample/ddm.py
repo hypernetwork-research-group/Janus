@@ -121,6 +121,9 @@ def sample_ddm(
                 walk_length=walk_length,
                 batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
             )
+            generated_hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
+            generated_hypergraph['name'] = model_name
+            generated_hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
             generated_hypergraphs.append(generated_hypergraph)
 
     return generated_hypergraphs
