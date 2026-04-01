@@ -535,7 +535,7 @@ class DiffusionTransformer(L.LightningModule):
                     break
                 logging.info(f"Generated {len(hyperedges)} hyperedges, continuing generation.")
                 print(f"Generated {len(hyperedges)} hyperedges, continuing generation.")
-                pbar.update(len(hyperedges))
+                pbar.update(len(hyperedges) - pbar.n)
                 tau = tau * tau_multiplier
             hypergraph = xgi.Hypergraph(list(hyperedges))
             return hypergraph
