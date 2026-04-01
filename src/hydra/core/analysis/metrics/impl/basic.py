@@ -250,6 +250,32 @@ class HyperedgeRecovery(Metric):
             "card_b": len(set_b),
         }
 
+from .utils import number_of_closed_triangles
+
+@register_metric()
+class NumberOfClosedTriangles(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        return number_of_closed_triangles(hg)
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class NumberOfOpenTriangles(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        # Triangles in the pairwise projection / 1-skeleton
+        G = hg.to_graph()
+        total_projected_triangles = sum(nx.triangles(G).values()) // 3
+
+        # Open = projected triangles that are not closed in the hypergraph
+        closed_triangles = number_of_closed_triangles(hg)
+        return total_projected_triangles - closed_triangles
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
 from hydra.core.models.components import StructureOnlyHypergraphRegressor
 
 class GeneratedHypergraphDetection(Metric):

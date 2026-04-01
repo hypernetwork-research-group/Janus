@@ -14,6 +14,8 @@ from itertools import combinations
 from multiprocessing import Pool
 from tqdm import tqdm
 
+from hydra.core.analysis.utils import HypergraphLazyParser
+
 def feature_vec (H):
     """""""""
     Feature vector related to the given hypergraph. This vector is a list of
@@ -372,3 +374,40 @@ def DunnIndex(distances, n_clusters, method='single'):
     DI = np.min(nums) / np.max(denoms)
 
     return DI
+
+def _iter_edge_node_sets(xgi_hg):
+    """
+    Yield the set of nodes incident to each hyperedge.
+
+    - Hypergraph: use edge members directly
+    - DiHyperg:contentReference[oaicite:0]{index=0}s
+    """
+    edges = xgi_hg.edges
+
+    if hasattr(edges, "members"):
+        for members in edges.members(dtype=dict).values():
+            yield set(members)
+        return
+
+    if hasattr(edges, "dimembers"):
+        for tail, head in edges.dimembers(dtype=dict).values():
+            yield set(tail) | set(head)
+        return
+
+    raise TypeError(f"Unsupported hypergraph type: {type(xgi_hg)!r}")
+
+def number_of_closed_triangles(hg: HypergraphLazyParser) -> int:
+    """
+    Count distinct closed triangles, i.e. distinct node triples {u,v,w}
+    such that some hyperedge contains all three nodes.
+    """
+    closed_triangles = set()
+
+    for nodes in _iter_edge_node_sets(hg.xgi_hypergraph):
+        if len(nodes) < 3:
+            continue
+
+        for triple in combinations(nodes, 3):
+            closed_triangles.add(frozenset(triple))
+
+    return len(closed_triangles)
