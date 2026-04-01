@@ -199,6 +199,11 @@ class HypergraphDataModule(L.LightningDataModule):
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
 
+        import xgi
+        _h = xgi.from_hif_dict(dataset['hif_dict'][0])
+        # Get the number of connected components in the hypergraph
+        num_connected_components = len(list(xgi.connected_components(_h)))
+
         # Here, we build a set of random walks for each hypergraph,
         # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
         dataset = DatasetDict({
@@ -208,7 +213,7 @@ class HypergraphDataModule(L.LightningDataModule):
                                             p=self.p,
                                             q=self.q,
                                             alpha=self.alpha,
-                                            r=0.1,
+                                            r=0 if num_connected_components <= 1 else 0.1,
                                             num_workers=self.num_workers - 1),
                                         cache_dir=self.cache_dir / "transformed" / self.dataset_name / f"sph{self.samples_per_hyperedge}" / f"wl{self.walk_length}" / f"p{self.p}" / f"q{self.q}" / f"a{self.alpha}",
                                         writer_batch_size=500,
