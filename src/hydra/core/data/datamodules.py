@@ -200,7 +200,7 @@ class HypergraphDataModule(L.LightningDataModule):
         dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
 
         import xgi
-        _h = xgi.from_hif_dict(dataset['hif_dict'][0])
+        _h = xgi.from_hif_dict(dataset['full']['hif_dict'][0])
         # Get the number of connected components in the hypergraph
         num_connected_components = len(list(xgi.connected_components(_h)))
 
