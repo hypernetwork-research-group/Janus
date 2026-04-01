@@ -182,6 +182,11 @@ class HypergraphDataModule(L.LightningDataModule):
         # This will be stored in the HuggingFace Datasets cache directory, so it won't be redownloaded every time
         dataset = load_dataset(self.dataset_name,
                                cache_dir=str(self.cache_dir / "datasets"))
+        
+        import xgi
+        _h = xgi.from_hif_dict(dataset['full'][0])
+        # Get the number of connected components in the hypergraph
+        num_connected_components = len(list(xgi.connected_components(_h)))
 
         # Preprocess the dataset
         # The preprocessing behaviour is described in the `process` function
@@ -198,11 +203,6 @@ class HypergraphDataModule(L.LightningDataModule):
 
         # After preprocessing, we save the processed dataset to disk, so that we can load it later without having to redo the preprocessing step
         dataset.save_to_disk(self.processed_dataset_dir, max_shard_size="1GB")
-
-        import xgi
-        _h = xgi.from_hif_dict(dataset['full'][0]['hif_dict'])
-        # Get the number of connected components in the hypergraph
-        num_connected_components = len(list(xgi.connected_components(_h)))
 
         # Here, we build a set of random walks for each hypergraph,
         # Each random walk will become an entry in the final dataset, associated with the matrices of corresponding node and hyperedge features
