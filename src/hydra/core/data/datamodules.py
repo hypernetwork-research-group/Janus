@@ -43,7 +43,7 @@ class FeaturesDataModule(L.LightningDataModule):
         self.train_split = train_split
         self.val_split = val_split
         self.predict_split = predict_split
-        self.val_size = 0.1 if not val_size else int(val_size) if val_size >= 1 else val_size
+        self.val_size = 0. if not val_size else int(val_size) if val_size >= 1 else val_size
 
         self.dataset_dir = data_dir / dataset_name
         self.processed_dataset_dir = self.dataset_dir / "processed"
@@ -167,8 +167,8 @@ class HypergraphDataModule(L.LightningDataModule):
         self.drop_last = drop_last
         # The validation size is only relevant if train_split == val_split, in which case we need to split the training set into a training and validation set
         # If it is >= 1, we interpret it as an absolute number of examples, if it is < 1, we interpret it as a proportion of the dataset
-        # If it is None, we set it to 0.1 by default
-        self.val_size = float(0.1) if val_size == None else int(val_size) if val_size >= 1 else float(val_size)
+        # If it is None, we set it to 0.0 by default
+        self.val_size = float(0.) if val_size == None else int(val_size) if val_size >= 1 else float(val_size)
     
         # Additional
         self.dataset_dir = data_dir / dataset_name
