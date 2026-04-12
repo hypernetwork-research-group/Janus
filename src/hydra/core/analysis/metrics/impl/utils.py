@@ -411,3 +411,36 @@ def number_of_closed_triangles(hg: HypergraphLazyParser) -> int:
             closed_triangles.add(frozenset(triple))
 
     return len(closed_triangles)
+
+def empirical_integer_distribution(values: np.ndarray) -> list[float]:
+    """
+    Returns a PMF as a dense list where index k contains P(X = k).
+    JSON-safe.
+    """
+    values = np.asarray(values, dtype=np.int64)
+
+    if values.size == 0:
+        return []
+
+    counts = np.bincount(values).astype(np.float64)
+    probs = counts / counts.sum()
+    return probs.tolist()
+
+def discrete_wasserstein_distance(a: list[float], b: list[float]) -> float:
+    """
+    Wasserstein-1 distance between two discrete 1D distributions
+    represented as dense PMF lists.
+    """
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+
+    n = max(len(a), len(b))
+    if len(a) < n:
+        a = np.pad(a, (0, n - len(a)))
+    if len(b) < n:
+        b = np.pad(b, (0, n - len(b)))
+
+    cdf_a = np.cumsum(a)
+    cdf_b = np.cumsum(b)
+
+    return float(np.abs(cdf_a - cdf_b).sum())

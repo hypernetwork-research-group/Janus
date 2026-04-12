@@ -120,6 +120,7 @@ def sample_ddm(
                 num_hyperedges=ds_hypergraph.num_edges,
                 walk_length=walk_length,
                 batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
+                tau_multiplier=1.0
             )
             generated_hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
             generated_hypergraph['name'] = model_name

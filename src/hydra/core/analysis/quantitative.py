@@ -12,6 +12,7 @@ def quantitative_analysis(hg: HypergraphLazyParser,
                  exclude_metrics: list[str] | None = None) -> dict[str, float | int | list | dict]:
 
     metric_keys = include_metrics or list_metrics()
+    print(hg)
 
     results = dict()
     for metric_key in tqdm(metric_keys, desc=str(hg), leave=False):

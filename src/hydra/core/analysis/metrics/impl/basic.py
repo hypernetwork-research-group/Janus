@@ -66,6 +66,29 @@ class LargestConnectedComponentDiameter(Metric):
         return abs(a - b)
 
 @register_metric()
+class LargestConnectedComponentNumberOfNodes(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        xgi_hypergraph = hg.xgi_hypergraph
+        largest_cc_nodes = xgi.largest_connected_component(xgi_hypergraph)
+        return len(largest_cc_nodes)
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class LargestConnectedComponentNumberOfHyperedges(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        xgi_hypergraph = hg.xgi_hypergraph
+        largest_cc_nodes = xgi.largest_connected_component(xgi_hypergraph)
+        largest_cc = xgi.subhypergraph(xgi_hypergraph, largest_cc_nodes)
+        return largest_cc.num_edges
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
 class IncidenceMatrixDensity(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
@@ -93,7 +116,6 @@ class CliqueExpansionNumberOfEdges(Metric):
 class LineGraphNumberOfEdges(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-        xgi_hypergraph = hg.xgi_hypergraph
         line_graph = hg.to_line_graph()
         return line_graph.number_of_edges()
 
@@ -119,6 +141,17 @@ class CliqueExpansionModularity(Metric):
         communities = nx.algorithms.community.louvain_communities(graph)
         modularity = nx.algorithms.community.modularity(graph, communities)
         return modularity
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class CliqueExpansionAverageClusteringCoefficient(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        graph = hg.to_graph()
+        avg_clustering = nx.average_clustering(graph)
+        return avg_clustering
 
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
         return abs(a - b)
@@ -204,18 +237,22 @@ from sklearn.metrics import normalized_mutual_info_score
 class NormalizedMutualInformation(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-        hyperedges = hg.xgi_hypergraph.edges.members()
-        xgi_hypergraph = xgi.Hypergraph(hyperedges)
-        xgi.convert_labels_to_integers(xgi_hypergraph, in_place=True)
-        graph = xgi.to_graph(xgi_hypergraph)
-        communities = nx.algorithms.community.louvain_communities(graph)
-        number_of_nodes = graph.number_of_nodes()
-        labels = [0] * number_of_nodes
-        for i, community in enumerate(communities):
-            for node in community:
-                labels[node] = i
+        hypernetx_hypergraph = hg.to_hypernetx_hypergraph()
+
+        communities = hmod.kumar(hypernetx_hypergraph)
+        communities = hmod.last_step(hypernetx_hypergraph, communities)
+
+        # Stable node order for the output vector
+        node_order = list(hypernetx_hypergraph.nodes)
+
+        # Safer: convert partition (list[set]) -> node -> community_id
+        node_to_community = hmod.part2dict(communities)
+
+        # Keep label vector aligned with node_order
+        labels = [node_to_community.get(node, -1) for node in node_order]
+
         return {
-            "labels": sorted(labels)
+            "labels": labels
         }
 
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
@@ -288,3 +325,29 @@ class GeneratedHypergraphDetection(Metric):
             num_classes=1,
             num_blocks=3
         )
+
+from .utils import empirical_integer_distribution, discrete_wasserstein_distance
+
+@register_metric()
+class NodeDegreeDistribution(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        incidence_matrix = hg.to_incidence_matrix()
+        # Node degree = number of incident hyperedges = row sum
+        degrees = incidence_matrix.sum(dim=1).cpu().numpy().astype(np.int64)
+        return empirical_integer_distribution(degrees)
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return discrete_wasserstein_distance(a, b)
+
+@register_metric()
+class HyperedgeSizeDistribution(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        incidence_matrix = hg.to_incidence_matrix()
+        # Hyperedge size = number of incident nodes = column sum
+        sizes = incidence_matrix.sum(dim=0).cpu().numpy().astype(np.int64)
+        return empirical_integer_distribution(sizes)
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return discrete_wasserstein_distance(a, b)
