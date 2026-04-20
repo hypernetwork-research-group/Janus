@@ -20,6 +20,97 @@ def file_discovery(
     elif str().join(path.suffixes) in target_suffixes:
         yield path
 
+import itertools
+from collections import defaultdict
+import networkx as nx
+
+def l_decomposed_hypergraph(H: xgi.Hypergraph, l: int) -> nx.Graph:
+    """
+    Build the l-level decomposed graph of an XGI hypergraph.
+
+    Parameters
+    ----------
+    H : xgi.Hypergraph
+        Input hypergraph.
+    l : int
+        Decomposition level (called k in the paper).
+
+    Returns
+    -------
+    G : networkx.Graph
+        The l-level decomposed graph.
+
+        - Each node is a frozenset of l original nodes.
+        - Two nodes u, v are adjacent iff there exists a hyperedge e in H
+          such that u ∪ v ⊆ e.
+        - Edge attribute 'weight' counts how many hyperedges contain u ∪ v.
+          If you want the simple unweighted version, you can ignore it.
+
+    Notes
+    -----
+    This matches the paper's k-level decomposition:
+        V^(k) = {v subset of V : |v| = k and v is contained in some hyperedge}
+        E^(k) = {{u, v} : there exists a hyperedge e with u ∪ v ⊆ e}
+
+    The weighted edge count is also useful because the appendix defines
+    edge weights as the number of hyperedges containing u ∪ v.
+    """
+
+    if not isinstance(l, int) or l < 1:
+        raise ValueError("l must be a positive integer.")
+
+    def _get_hyperedges_as_sets(H):
+        """
+        Try a few common XGI access patterns and return a list of sets.
+        """
+        # Common XGI pattern
+        if hasattr(H, "edges") and hasattr(H.edges, "members"):
+            members = H.edges.members()
+            # members may be a dict-like {edge_id: iterable_of_nodes}
+            if hasattr(members, "items"):
+                return [set(nodes) for _, nodes in members.items()]
+            return [set(nodes) for nodes in members]
+
+        # Fallback: iterate edge IDs and query members
+        if hasattr(H, "edges"):
+            try:
+                return [set(H.edges.members(e)) for e in H.edges]
+            except Exception:
+                pass
+
+        raise TypeError(
+            "Could not extract hyperedges from H. "
+            "Expected an XGI hypergraph with an accessible edge-members API."
+        )
+
+    hyperedges = _get_hyperedges_as_sets(H)
+
+    G = nx.Graph()
+    edge_weights = defaultdict(int)
+
+    for e in hyperedges:
+        if len(e) < l:
+            continue
+
+        # All l-subsets of this hyperedge become nodes in the decomposed graph
+        l_subsets = [frozenset(s) for s in itertools.combinations(e, l)]
+
+        # Add nodes
+        for s in l_subsets:
+            if not G.has_node(s):
+                G.add_node(s, members=tuple(s), size=l)
+
+        # Connect every pair of l-subsets whose union is contained in this hyperedge.
+        # Since both subsets come from e, this condition is automatically satisfied.
+        for u, v in itertools.combinations(l_subsets, 2):
+            edge_weights[(u, v)] += 1
+
+    # Add weighted edges
+    for (u, v), w in edge_weights.items():
+        G.add_edge(u, v, weight=w)
+
+    return G
+
 class HypergraphLazyParser:
 
     def __init__(self, xgi_hypergraph: xgi.Hypergraph | xgi.DiHypergraph):
@@ -73,6 +164,11 @@ class HypergraphLazyParser:
         # Reorder incidence matrix to match the order of node and edge features
         incidence_matrix = incidence_matrix[row_perm][:, col_perm]
         return incidence_matrix
+
+    @cache
+    def l_decomposed_hypergraph(self, l: int):
+        decomposed_hg = l_decomposed_hypergraph(self.xgi_hypergraph, l)
+        return decomposed_hg
 
     def generate_random_paths(self, path_length: int, batch_size: int = 32):
         assert path_length >= 2, "Path length must be at least 2 to generate paths in the line graph."

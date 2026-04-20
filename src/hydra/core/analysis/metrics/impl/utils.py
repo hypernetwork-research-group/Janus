@@ -444,3 +444,4 @@ def discrete_wasserstein_distance(a: list[float], b: list[float]) -> float:
     cdf_b = np.cumsum(b)
 
     return float(np.abs(cdf_a - cdf_b).sum())
+

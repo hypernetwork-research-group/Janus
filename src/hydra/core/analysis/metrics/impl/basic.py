@@ -351,3 +351,112 @@ class HyperedgeSizeDistribution(Metric):
 
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
         return discrete_wasserstein_distance(a, b)
+
+# Structural Patterns
+
+@register_metric()
+class OneLevelDecomposedHypergraphClusteringCoefficient(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        decomposed_hg: nx.Graph = hg.l_decomposed_hypergraph(l=1)
+        clustering_coeffs = nx.clustering(decomposed_hg)
+        avg_clustering_coeff = sum(clustering_coeffs.values()) / len(clustering_coeffs)
+        return avg_clustering_coeff
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class OneLevelDecomposedHypergraphLargestConnectedComponent(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        decomposed_hg: nx.Graph = hg.l_decomposed_hypergraph(l=1)
+        largest_cc_nodes = max(nx.connected_components(decomposed_hg), key=len)
+        # return lcc size as a fraction of total nodes in the decomposed graph
+        return len(largest_cc_nodes) / decomposed_hg.number_of_nodes()
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class OneLevelDecomposedHypergraphDiameter(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        G = hg.l_decomposed_hypergraph(l=1)
+
+        if G.number_of_nodes() == 0:
+            return 0
+
+        largest_cc = max(nx.connected_components(G), key=len)
+        G = G.subgraph(largest_cc)
+
+        if G.number_of_nodes() <= 1:
+            return 0
+
+        # Collect shortest path lengths
+        lengths = []
+        for _, dist_dict in nx.all_pairs_shortest_path_length(G):
+            lengths.extend(d for d in dist_dict.values() if d > 0)
+
+        if not lengths:
+            return 0
+
+        # Histogram-based CDF
+        values, counts = np.unique(lengths, return_counts=True)
+        cum_counts = np.cumsum(counts)
+        total = cum_counts[-1]
+
+        target = 0.9 * total
+
+        # Find where CDF crosses 90%
+        idx = np.searchsorted(cum_counts, target)
+
+        if idx == 0:
+            return float(values[0])
+
+        # Linear interpolation
+        x0, x1 = values[idx - 1], values[idx]
+        y0, y1 = cum_counts[idx - 1], cum_counts[idx]
+
+        effective_diameter = x0 + (target - y0) * (x1 - x0) / (y1 - y0)
+
+        return float(effective_diameter)
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class OneLevelDecomposedHypergraphClosedTriangles(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        G: nx.Graph = hg.l_decomposed_hypergraph(l=1)
+        triangles_per_node = nx.triangles(G)
+        total_triangles = sum(triangles_per_node.values()) // 3
+        return total_triangles
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
+@register_metric()
+class OneLevelDecomposedHypergraphOpenTriangles(Metric):
+
+    def compute(self, hg: HypergraphLazyParser) -> MetricResult:
+        G: nx.Graph = hg.l_decomposed_hypergraph(l=1)
+        
+        # count all connected triplets
+        triplets = 0
+        for node in G:
+            k = G.degree(node)
+            triplets += k * (k - 1) // 2
+
+        triangles_per_node = nx.triangles(G)
+        # total number of closed triangles
+        closed_triangles = sum(triangles_per_node.values()) // 3
+
+        # open triangles = triplets - closed triangles
+        open_triangles = triplets - closed_triangles
+        return open_triangles
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        return abs(a - b)
+
