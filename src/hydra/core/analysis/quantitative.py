@@ -20,6 +20,7 @@ def quantitative_analysis(hg: HypergraphLazyParser,
             continue
         _Metric = get_metric(metric_key)
         metric = _Metric()
+        print(metric)
         try:
             metric_value = metric.compute(hg)
         except MemoryError:

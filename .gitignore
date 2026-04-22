@@ -14,8 +14,7 @@ cache/
 /data/
 logs/
 examples/datasets/
-samples/
-samples copy/
+samples*/
 references/
 /figures/
 tables/

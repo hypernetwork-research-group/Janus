@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import numpy as np
 import networkx as nx
 import xgi
-from scipy.stats import kurtosis, skew
 from scipy.cluster import hierarchy
 from scipy.spatial import distance
 from itertools import combinations
@@ -445,3 +446,73 @@ def discrete_wasserstein_distance(a: list[float], b: list[float]) -> float:
 
     return float(np.abs(cdf_a - cdf_b).sum())
 
+import networkx as nx
+
+def count_closed_triangles(G: nx.Graph) -> int:
+    """
+    Count the number of closed triangles in an undirected NetworkX graph.
+
+    A closed triangle is a set of three distinct nodes {u, v, w} such that
+    all three edges (u, v), (v, w), and (u, w) exist.
+
+    This implementation is memory efficient:
+    - it does not build dense matrices
+    - it avoids storing all triangles
+    - it orients edges by degree to reduce intersection work
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Undirected simple graph.
+
+    Returns
+    -------
+    int
+        Number of unique triangles.
+
+    Notes
+    -----
+    Time complexity is roughly:
+        O(sum_{(u,v) in E} min(out_deg(u), out_deg(v)))
+    after degree ordering, which is typically much faster than naive O(n^3).
+
+    Self-loops are ignored. For multigraphs, convert first with nx.Graph(G).
+    """
+    if G.is_directed():
+        raise ValueError("count_closed_triangles expects an undirected graph")
+
+    # Degree-based ordering:
+    # direct edge u -> v if (deg(u), u) < (deg(v), v)
+    degree = dict(G.degree())
+    order = {node: (degree[node], node) for node in G.nodes()}
+
+    # Store only forward neighbors; total size is O(m)
+    forward = {u: set() for u in G.nodes()}
+
+    for u, v in tqdm(G.edges(), desc="Orienting edges", leave=False):
+        if u == v:
+            continue  # ignore self-loops
+        if order[u] < order[v]:
+            forward[u].add(v)
+        else:
+            forward[v].add(u)
+
+    triangles = 0
+
+    # For each oriented edge u -> v, count common forward neighbors
+    # Each triangle is counted exactly once
+    for u in tqdm(G.nodes(), desc="Counting triangles", leave=False):
+        fu = forward[u]
+        if not fu:
+            continue
+
+        for v in fu:
+            fv = forward[v]
+
+            # Intersect the smaller set into the larger one
+            if len(fu) < len(fv):
+                triangles += sum(1 for w in fu if w in fv)
+            else:
+                triangles += sum(1 for w in fv if w in fu)
+
+    return triangles

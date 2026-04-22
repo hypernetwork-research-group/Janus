@@ -21,93 +21,100 @@ def file_discovery(
         yield path
 
 import itertools
-from collections import defaultdict
-import networkx as nx
+from math import comb
+import numpy as np
+import xgi
+from tqdm import tqdm
 
-def l_decomposed_hypergraph(H: xgi.Hypergraph, l: int) -> nx.Graph:
+def l_decomposed_hypergraph(
+    H: xgi.Hypergraph,
+    l: int,
+    *,
+    max_subsets_per_edge: int | None = None,
+    sort_nodes: bool = True,
+) -> nx.Graph:
     """
     Build the l-level decomposed graph of an XGI hypergraph.
 
-    Parameters
-    ----------
-    H : xgi.Hypergraph
-        Input hypergraph.
-    l : int
-        Decomposition level (called k in the paper).
+    Assumptions for this implementation:
+    - weighted = False
+    - return_subset_labels = False
 
-    Returns
-    -------
-    G : networkx.Graph
-        The l-level decomposed graph.
+    Nodes in the returned graph are compact integer ids.
+    Each node has attribute:
+        subset -> tuple representing the l-subset
 
-        - Each node is a frozenset of l original nodes.
-        - Two nodes u, v are adjacent iff there exists a hyperedge e in H
-          such that u ∪ v ⊆ e.
-        - Edge attribute 'weight' counts how many hyperedges contain u ∪ v.
-          If you want the simple unweighted version, you can ignore it.
-
-    Notes
-    -----
-    This matches the paper's k-level decomposition:
-        V^(k) = {v subset of V : |v| = k and v is contained in some hyperedge}
-        E^(k) = {{u, v} : there exists a hyperedge e with u ∪ v ⊆ e}
-
-    The weighted edge count is also useful because the appendix defines
-    edge weights as the number of hyperedges containing u ∪ v.
+    This version avoids building a SciPy sparse matrix and avoids
+    nx.from_scipy_sparse_array(...), which can create large temporary
+    copies and cause OOM.
     """
-
     if not isinstance(l, int) or l < 1:
         raise ValueError("l must be a positive integer.")
 
-    def _get_hyperedges_as_sets(H):
-        """
-        Try a few common XGI access patterns and return a list of sets.
-        """
-        # Common XGI pattern
+    def iter_hyperedges(H):
         if hasattr(H, "edges") and hasattr(H.edges, "members"):
             members = H.edges.members()
-            # members may be a dict-like {edge_id: iterable_of_nodes}
             if hasattr(members, "items"):
-                return [set(nodes) for _, nodes in members.items()]
-            return [set(nodes) for nodes in members]
+                for _, nodes in members.items():
+                    yield tuple(nodes)
+                return
+            for nodes in members:
+                yield tuple(nodes)
+            return
 
-        # Fallback: iterate edge IDs and query members
         if hasattr(H, "edges"):
-            try:
-                return [set(H.edges.members(e)) for e in H.edges]
-            except Exception:
-                pass
+            for e in H.edges:
+                yield tuple(H.edges.members(e))
+            return
 
-        raise TypeError(
-            "Could not extract hyperedges from H. "
-            "Expected an XGI hypergraph with an accessible edge-members API."
-        )
+        raise TypeError("Could not extract hyperedges from H.")
 
-    hyperedges = _get_hyperedges_as_sets(H)
+    subset_to_id: dict[tuple, int] = {}
+    next_id = 0
 
-    G = nx.Graph()
-    edge_weights = defaultdict(int)
+    # Store each undirected edge only once as (min_id, max_id)
+    edge_set: set[tuple[int, int]] = set()
 
-    for e in hyperedges:
-        if len(e) < l:
+    for edge_nodes in tqdm(iter_hyperedges(H), desc="Processing hyperedges"):
+        m = len(edge_nodes)
+        if m < l:
             continue
 
-        # All l-subsets of this hyperedge become nodes in the decomposed graph
-        l_subsets = [frozenset(s) for s in itertools.combinations(e, l)]
+        n_subsets = comb(m, l)
+        if max_subsets_per_edge is not None and n_subsets > max_subsets_per_edge:
+            continue
 
-        # Add nodes
-        for s in l_subsets:
-            if not G.has_node(s):
-                G.add_node(s, members=tuple(s), size=l)
+        subset_ids = []
+        for subset in itertools.combinations(edge_nodes, l):
+            key = tuple(sorted(subset)) if sort_nodes else tuple(subset)
+            node_id = subset_to_id.get(key)
+            if node_id is None:
+                node_id = next_id
+                subset_to_id[key] = node_id
+                next_id += 1
+            subset_ids.append(node_id)
 
-        # Connect every pair of l-subsets whose union is contained in this hyperedge.
-        # Since both subsets come from e, this condition is automatically satisfied.
-        for u, v in itertools.combinations(l_subsets, 2):
-            edge_weights[(u, v)] += 1
+        # Add clique edges among all l-subsets of this hyperedge
+        for u, v in itertools.combinations(subset_ids, 2):
+            if u > v:
+                u, v = v, u
+            edge_set.add((u, v))
 
-    # Add weighted edges
-    for (u, v), w in edge_weights.items():
-        G.add_edge(u, v, weight=w)
+    n = next_id
+
+    print(f"Building NetworkX graph directly from {len(edge_set)} undirected edges...")
+
+    G = nx.Graph()
+    print(f"Adding {n} nodes and {len(edge_set)} edges to the graph...")
+    G.add_nodes_from(range(n))
+    print("Adding edges...")
+    # G.add_edges_from(edge_set)
+    for u, v in tqdm(edge_set, desc="Adding edges to graph", mininterval=1.0):
+        G.add_edge(u, v)
+
+    # # Attach subset labels as node attributes
+    # id_to_subset = {idx: subset for subset, idx in subset_to_id.items()}
+    # nx.set_node_attributes(G, id_to_subset, name="subset")
 
     return G
 
