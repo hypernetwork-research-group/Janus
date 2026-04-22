@@ -448,22 +448,105 @@ def discrete_wasserstein_distance(a: list[float], b: list[float]) -> float:
 
 import networkx as nx
 
-def count_closed_triangles(G: nx.Graph) -> int:
+import math
+import multiprocessing as mp
+from collections import defaultdict
+from itertools import islice
+from typing import Iterable, List, Tuple
+
+import networkx as nx
+from tqdm import tqdm
+
+
+# --- Globals set once per worker to avoid repeatedly passing large objects ---
+_WORKER_ORDER = None
+_WORKER_FORWARD = None
+
+
+def _init_edge_worker(order):
+    global _WORKER_ORDER
+    _WORKER_ORDER = order
+
+
+def _init_count_worker(forward):
+    global _WORKER_FORWARD
+    _WORKER_FORWARD = forward
+
+
+def _edge_chunk_worker(edge_chunk: List[Tuple[int, int]]) -> dict:
     """
-    Count the number of closed triangles in an undirected NetworkX graph.
+    Build a partial forward-neighbor map for one chunk of edges.
+    """
+    partial = defaultdict(set)
+    order = _WORKER_ORDER
 
-    A closed triangle is a set of three distinct nodes {u, v, w} such that
-    all three edges (u, v), (v, w), and (u, w) exist.
+    for u, v in edge_chunk:
+        if u == v:
+            continue  # ignore self-loops
+        if order[u] < order[v]:
+            partial[u].add(v)
+        else:
+            partial[v].add(u)
 
-    This implementation is memory efficient:
-    - it does not build dense matrices
-    - it avoids storing all triangles
-    - it orients edges by degree to reduce intersection work
+    return partial
+
+
+def _count_chunk_worker(node_chunk: List[int]) -> int:
+    """
+    Count triangles for one chunk of source nodes using the global forward map.
+    """
+    forward = _WORKER_FORWARD
+    total = 0
+
+    for u in node_chunk:
+        fu = forward.get(u, ())
+        if not fu:
+            continue
+
+        for v in fu:
+            fv = forward.get(v, ())
+            if len(fu) < len(fv):
+                total += sum(1 for w in fu if w in fv)
+            else:
+                total += sum(1 for w in fv if w in fu)
+
+    return total
+
+
+def _chunked(iterable: Iterable, chunk_size: int):
+    """
+    Yield lists of size up to chunk_size from iterable.
+    """
+    it = iter(iterable)
+    while True:
+        chunk = list(islice(it, chunk_size))
+        if not chunk:
+            return
+        yield chunk
+
+def count_closed_triangles(
+    G: nx.Graph,
+    processes: int | None = None,
+    edge_chunk_size: int = 50_000,
+    node_chunk_size: int = 1_000,
+) -> int:
+    """
+    Count closed triangles in an undirected NetworkX graph using multiprocessing.
+
+    Both major loops are parallelized:
+    1. Building the forward-neighbor orientation from edges
+    2. Counting triangle contributions from node chunks
 
     Parameters
     ----------
     G : nx.Graph
         Undirected simple graph.
+    processes : int | None
+        Number of worker processes. Defaults to cpu_count() - 1, with a minimum of 1.
+    edge_chunk_size : int
+        Number of edges processed per task in the first parallel loop.
+    node_chunk_size : int
+        Number of nodes processed per task in the second parallel loop.
 
     Returns
     -------
@@ -472,47 +555,61 @@ def count_closed_triangles(G: nx.Graph) -> int:
 
     Notes
     -----
-    Time complexity is roughly:
-        O(sum_{(u,v) in E} min(out_deg(u), out_deg(v)))
-    after degree ordering, which is typically much faster than naive O(n^3).
-
-    Self-loops are ignored. For multigraphs, convert first with nx.Graph(G).
+    - Best memory behavior is typically achieved on Unix-like systems where
+      multiprocessing can benefit from copy-on-write after fork.
+    - On Windows, spawning workers may still require more memory because Python
+      must pickle objects for child processes.
     """
     if G.is_directed():
         raise ValueError("count_closed_triangles expects an undirected graph")
 
-    # Degree-based ordering:
-    # direct edge u -> v if (deg(u), u) < (deg(v), v)
+    if processes is None:
+        processes = max(1, mp.cpu_count() - 1)
+    elif processes < 1:
+        raise ValueError("processes must be >= 1")
+
+    # Degree-based ordering
     degree = dict(G.degree())
     order = {node: (degree[node], node) for node in G.nodes()}
 
-    # Store only forward neighbors; total size is O(m)
+    # -------- First loop: build forward-neighbor map in parallel --------
+    edges = G.edges()
+    n_edges = G.number_of_edges()
+    edge_tasks = max(1, math.ceil(n_edges / edge_chunk_size))
+
     forward = {u: set() for u in G.nodes()}
 
-    for u, v in tqdm(G.edges(), desc="Orienting edges", leave=False):
-        if u == v:
-            continue  # ignore self-loops
-        if order[u] < order[v]:
-            forward[u].add(v)
-        else:
-            forward[v].add(u)
+    # Use a context explicitly; "fork" is most memory-efficient on Unix
+    ctx = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
 
+    with ctx.Pool(
+        processes=processes,
+        initializer=_init_edge_worker,
+        initargs=(order,),
+    ) as pool:
+        for partial in tqdm(
+            pool.imap_unordered(_edge_chunk_worker, _chunked(edges, edge_chunk_size)),
+            total=edge_tasks,
+            desc="Building forward adjacency",
+        ):
+            for u, nbrs in partial.items():
+                forward[u].update(nbrs)
+
+    # -------- Second loop: count triangles in parallel --------
+    nodes = list(G.nodes())
+    node_tasks = max(1, math.ceil(len(nodes) / node_chunk_size))
     triangles = 0
 
-    # For each oriented edge u -> v, count common forward neighbors
-    # Each triangle is counted exactly once
-    for u in tqdm(G.nodes(), desc="Counting triangles", leave=False):
-        fu = forward[u]
-        if not fu:
-            continue
-
-        for v in fu:
-            fv = forward[v]
-
-            # Intersect the smaller set into the larger one
-            if len(fu) < len(fv):
-                triangles += sum(1 for w in fu if w in fv)
-            else:
-                triangles += sum(1 for w in fv if w in fu)
+    with ctx.Pool(
+        processes=processes,
+        initializer=_init_count_worker,
+        initargs=(forward,),
+    ) as pool:
+        for partial_count in tqdm(
+            pool.imap_unordered(_count_chunk_worker, _chunked(nodes, node_chunk_size)),
+            total=node_tasks,
+            desc="Counting triangles",
+        ):
+            triangles += partial_count
 
     return triangles
