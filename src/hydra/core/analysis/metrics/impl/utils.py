@@ -458,158 +458,160 @@ import networkx as nx
 from tqdm import tqdm
 
 
-# --- Globals set once per worker to avoid repeatedly passing large objects ---
-_WORKER_ORDER = None
-_WORKER_FORWARD = None
+# Worker globals, initialized once per process
+_FORWARD: dict | None = None
+_NODES: list | None = None
 
 
-def _init_edge_worker(order):
-    global _WORKER_ORDER
-    _WORKER_ORDER = order
-
-
-def _init_count_worker(forward):
-    global _WORKER_FORWARD
-    _WORKER_FORWARD = forward
-
-
-def _edge_chunk_worker(edge_chunk: List[Tuple[int, int]]) -> dict:
+def _init_triangle_workers(forward: dict, nodes: list) -> None:
     """
-    Build a partial forward-neighbor map for one chunk of edges.
+    Initializer for worker processes.
+
+    Using globals avoids sending the graph data with every task. On Unix-like
+    systems, using the 'fork' start method keeps memory usage low because the
+    read-only data is shared copy-on-write across workers.
     """
-    partial = defaultdict(set)
-    order = _WORKER_ORDER
-
-    for u, v in edge_chunk:
-        if u == v:
-            continue  # ignore self-loops
-        if order[u] < order[v]:
-            partial[u].add(v)
-        else:
-            partial[v].add(u)
-
-    return partial
+    global _FORWARD, _NODES
+    _FORWARD = forward
+    _NODES = nodes
 
 
-def _count_chunk_worker(node_chunk: List[int]) -> int:
+def _count_triangles_for_node_range(start_stop: tuple[int, int]) -> int:
     """
-    Count triangles for one chunk of source nodes using the global forward map.
+    Count triangles for nodes in _NODES[start:stop].
     """
-    forward = _WORKER_FORWARD
-    total = 0
+    assert _FORWARD is not None
+    assert _NODES is not None
 
-    for u in node_chunk:
-        fu = forward.get(u, ())
+    start, stop = start_stop
+    triangles = 0
+
+    for i in range(start, stop):
+        u = _NODES[i]
+        fu = _FORWARD[u]
         if not fu:
             continue
 
         for v in fu:
-            fv = forward.get(v, ())
+            fv = _FORWARD[v]
+
+            # Intersect the smaller set into the larger one
             if len(fu) < len(fv):
-                total += sum(1 for w in fu if w in fv)
+                triangles += sum(1 for w in fu if w in fv)
             else:
-                total += sum(1 for w in fv if w in fu)
+                triangles += sum(1 for w in fv if w in fu)
 
-    return total
+    return triangles
 
 
-def _chunked(iterable: Iterable, chunk_size: int):
+def _make_ranges(n: int, chunk_size: int) -> Iterable[tuple[int, int]]:
     """
-    Yield lists of size up to chunk_size from iterable.
+    Yield (start, stop) index ranges.
     """
-    it = iter(iterable)
-    while True:
-        chunk = list(islice(it, chunk_size))
-        if not chunk:
-            return
-        yield chunk
+    for start in range(0, n, chunk_size):
+        yield start, min(start + chunk_size, n)
+
 
 def count_closed_triangles(
     G: nx.Graph,
     processes: int | None = None,
-    edge_chunk_size: int = 50_000,
-    node_chunk_size: int = 1_000,
+    chunk_size: int = 256,
+    show_progress: bool = True,
 ) -> int:
     """
-    Count closed triangles in an undirected NetworkX graph using multiprocessing.
+    Count the number of closed triangles in an undirected NetworkX graph.
 
-    Both major loops are parallelized:
-    1. Building the forward-neighbor orientation from edges
-    2. Counting triangle contributions from node chunks
+    Only the SECOND loop (the outer counting loop over nodes) is parallelized.
 
     Parameters
     ----------
     G : nx.Graph
         Undirected simple graph.
     processes : int | None
-        Number of worker processes. Defaults to cpu_count() - 1, with a minimum of 1.
-    edge_chunk_size : int
-        Number of edges processed per task in the first parallel loop.
-    node_chunk_size : int
-        Number of nodes processed per task in the second parallel loop.
+        Number of worker processes. Default is max(1, cpu_count() - 1).
+    chunk_size : int
+        Number of nodes handled per task sent to workers.
+    show_progress : bool
+        Whether to display tqdm progress bars.
 
     Returns
     -------
     int
         Number of unique triangles.
-
-    Notes
-    -----
-    - Best memory behavior is typically achieved on Unix-like systems where
-      multiprocessing can benefit from copy-on-write after fork.
-    - On Windows, spawning workers may still require more memory because Python
-      must pickle objects for child processes.
     """
     if G.is_directed():
         raise ValueError("count_closed_triangles expects an undirected graph")
 
     if processes is None:
         processes = max(1, mp.cpu_count() - 1)
-    elif processes < 1:
-        raise ValueError("processes must be >= 1")
+    else:
+        processes = max(1, processes)
 
-    # Degree-based ordering
+    # First phase: build the oriented forward adjacency (kept serial)
     degree = dict(G.degree())
     order = {node: (degree[node], node) for node in G.nodes()}
-
-    # -------- First loop: build forward-neighbor map in parallel --------
-    edges = G.edges()
-    n_edges = G.number_of_edges()
-    edge_tasks = max(1, math.ceil(n_edges / edge_chunk_size))
-
     forward = {u: set() for u in G.nodes()}
 
-    # Use a context explicitly; "fork" is most memory-efficient on Unix
-    ctx = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
+    edge_iter = G.edges()
+    if show_progress:
+        try:
+            total_edges = G.number_of_edges()
+        except Exception:
+            total_edges = None
+        edge_iter = tqdm(edge_iter, total=total_edges, desc="Orienting edges")
 
-    with ctx.Pool(
-        processes=processes,
-        initializer=_init_edge_worker,
-        initargs=(order,),
-    ) as pool:
-        for partial in tqdm(
-            pool.imap_unordered(_edge_chunk_worker, _chunked(edges, edge_chunk_size)),
-            total=edge_tasks,
-            desc="Building forward adjacency",
-        ):
-            for u, nbrs in partial.items():
-                forward[u].update(nbrs)
+    for u, v in edge_iter:
+        if u == v:
+            continue
+        if order[u] < order[v]:
+            forward[u].add(v)
+        else:
+            forward[v].add(u)
 
-    # -------- Second loop: count triangles in parallel --------
     nodes = list(G.nodes())
-    node_tasks = max(1, math.ceil(len(nodes) / node_chunk_size))
-    triangles = 0
 
+    # If only one process is requested, run serially but keep tqdm
+    if processes == 1 or len(nodes) == 0:
+        triangles = 0
+        node_iter = nodes
+        if show_progress:
+            node_iter = tqdm(node_iter, total=len(nodes), desc="Counting triangles", mininterval=1.0)
+
+        for u in node_iter:
+            fu = forward[u]
+            if not fu:
+                continue
+
+            for v in fu:
+                fv = forward[v]
+                if len(fu) < len(fv):
+                    triangles += sum(1 for w in fu if w in fv)
+                else:
+                    triangles += sum(1 for w in fv if w in fu)
+
+        return triangles
+
+    # Parallelize ONLY the second loop by splitting the node list into ranges
+    ranges = list(_make_ranges(len(nodes), chunk_size))
+
+    # Prefer fork on Unix to reduce memory usage via copy-on-write sharing
+    try:
+        ctx = mp.get_context("fork")
+    except ValueError:
+        ctx = mp.get_context()
+
+    triangles = 0
     with ctx.Pool(
         processes=processes,
-        initializer=_init_count_worker,
-        initargs=(forward,),
+        initializer=_init_triangle_workers,
+        initargs=(forward, nodes),
     ) as pool:
-        for partial_count in tqdm(
-            pool.imap_unordered(_count_chunk_worker, _chunked(nodes, node_chunk_size)),
-            total=node_tasks,
-            desc="Counting triangles",
-        ):
-            triangles += partial_count
+        results = pool.imap_unordered(_count_triangles_for_node_range, ranges)
+
+        if show_progress:
+            results = tqdm(results, total=len(ranges), desc="Counting triangles", mininterval=1.0)
+
+        for partial in results:
+            triangles += partial
 
     return triangles

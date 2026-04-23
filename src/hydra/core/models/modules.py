@@ -346,14 +346,14 @@ class DiffusionTransformer(L.LightningModule):
                 hidden_channels=self.model_size_config.hidden_dim,
                 num_blocks=self.model_size_config.num_layers,
                 num_heads=self.model_size_config.heads,
-                cross_attention=True
+                cross_attention=True # The vertices DiT always has cross attention, since it needs to attend to the hyperedge latents to produce the vertex representations
             )
         self.hyperedges_dit = DiT(
             in_channels=self.bvae.latent_dim,
             hidden_channels=self.model_size_config.hidden_dim,
             num_blocks=self.model_size_config.num_layers,
             num_heads=self.model_size_config.heads,
-            cross_attention=True
+            cross_attention=self.bvae.vertex_encoding # If vertex encoding is disabled, we can disable cross attention in the hyperedges DiT, since there are no node latents to attend to
         )
 
         if self.bvae.vertex_encoding:
