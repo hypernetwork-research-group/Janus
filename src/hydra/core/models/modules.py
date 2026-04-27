@@ -269,7 +269,9 @@ class HypergraphBetaVAE(L.LightningModule):
 
         incidence_matrices = torch.distributions.Categorical(logits=h_logits).sample()
 
-        return incidence_matrices, h_logits, x_r, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
+        membership_mask = incidence_matrices.sum(dim=2).bool() # [B, num_nodes]
+
+        return incidence_matrices, h_logits, x_r, membership_mask, x_z, y_z, x_mu, y_mu, x_log_var, y_log_var
 
 from lightning.pytorch.callbacks.weight_averaging import EMAWeightAveraging
 from .utils import min_snr_weighted_v_mse_loss

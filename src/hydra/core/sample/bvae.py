@@ -1,9 +1,12 @@
 from pathlib import Path
 
 import lightning as L
+from datasets import load_dataset
 import torch
 from tqdm.rich import tqdm
 import xgi
+from sklearn.cluster import KMeans
+import numpy as np
 
 from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig, RandomWalkConfig
 from hydra.core.models.modules import HypergraphBetaVAE
@@ -28,6 +31,11 @@ def sample_bvae(
         enable_checkpointing=False,
     )
 
+    dataset = load_dataset(
+        huggingface_datasets_config.dataset_name,
+        cache_dir=huggingface_datasets_config.cache_dir,
+        split=datamodule_config.predict_split
+    )
     datamodule = HypergraphDataModule(dataset_name=huggingface_datasets_config.dataset_name,
                                       node_feature=huggingface_datasets_config.node_feature,
                                       hyperedge_feature=huggingface_datasets_config.hyperedge_feature,
@@ -46,6 +54,8 @@ def sample_bvae(
                                     persistent_workers=dataloader_config.persistent_workers,
                                     batch_size=dataloader_config.batch_size if dataloader_config.batch_size is not None else 1,
                                     val_size=datamodule_config.val_size,)
+    datamodule.prepare_data()
+    datamodule.setup("predict")
 
     predictions = trainer.predict(
         model,
@@ -53,8 +63,15 @@ def sample_bvae(
         ckpt_path=ckpt_path,
     )
 
+    num_nodes = xgi.from_hif_dict(dataset[0], nodetype=int, edgetype=int).num_nodes
+    embeddings = []
+    membership_masks = []
+
     hyperedges = set()
-    for incidence_matrices, *_ in tqdm(predictions):
+    for incidence_matrices, _, x_r, membership_mask, *_ in tqdm(predictions):
+        if x_r is not None:
+            embeddings.append(x_r.cpu())
+        membership_masks.append(membership_mask.cpu())
         for incidence_matrix in incidence_matrices:
             for col in incidence_matrix.T:
                 nodes = torch.nonzero(col).squeeze().tolist()
@@ -65,6 +82,23 @@ def sample_bvae(
                 nodes = tuple(sorted(nodes))
                 hyperedges.add(nodes)
     hyperedges = list(hyperedges)
+
+    np_embeddings = torch.cat(embeddings, dim=0).cpu().numpy()  # [B, num_nodes, F]
+    np_embeddings = np_embeddings.reshape(-1, np_embeddings.shape[-1]) # [B * num_nodes, F]
+    np_membership_masks = torch.cat(membership_masks, dim=0).cpu().float().numpy()  # [B, num_nodes]
+    np_membership_masks = np_membership_masks.reshape(-1)  # [B * num_nodes]
+    kmeans = KMeans(n_clusters=num_nodes, random_state=0).fit(np_embeddings, sample_weight=np_membership_masks)
+    kmeans_labels = np.array(kmeans.labels_).reshape(-1, num_nodes)  # [B, num_nodes]
+
+    y_true = torch.arange(num_nodes).repeat(kmeans_labels.shape[0], 1)  # [B, num_nodes]
+
+    from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, adjusted_mutual_info_score
+
+    ari = adjusted_rand_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+    nmi = normalized_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+    ami = adjusted_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+
+    print(f"ARI: {ari:.4f}, NMI: {nmi:.4f}, AMI: {ami:.4f}")
 
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name

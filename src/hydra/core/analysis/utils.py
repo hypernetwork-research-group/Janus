@@ -20,101 +20,49 @@ def file_discovery(
     elif str().join(path.suffixes) in target_suffixes:
         yield path
 
-import itertools
 from math import comb
 import numpy as np
 import xgi
+from typing import Hashable, Iterable
+from itertools import combinations
+import networkx as nx
+import xgi
 from tqdm import tqdm
 
-def l_decomposed_hypergraph(
-    H: xgi.Hypergraph,
-    l: int,
-    *,
-    max_subsets_per_edge: int | None = None,
-    sort_nodes: bool = True,
-) -> nx.Graph:
+def l_decomposed_hypergraph(H: xgi.Hypergraph, l: int) -> nx.Graph:
     """
-    Build the l-level decomposed graph of an XGI hypergraph.
+    KDD-20 Hypergraph l-th level decomposition.
 
-    Assumptions for this implementation:
-    - weighted = False
-    - return_subset_labels = False
+    Output nodes are canonical tuples of original node labels, each of size l.
+    For each eligible hyperedge e, all l-subsets of e are added as nodes and
+    connected as a clique.
 
-    Nodes in the returned graph are compact integer ids.
-    Each node has attribute:
-        subset -> tuple representing the l-subset
-
-    This version avoids building a SciPy sparse matrix and avoids
-    nx.from_scipy_sparse_array(...), which can create large temporary
-    copies and cause OOM.
+    Repository-compatible cutoff:
+      - l == 1: use hyperedges with size <= 25, as in the paper's node-level setup.
+      - l >= 2: use hyperedges with size <= 7, matching the released Java code.
     """
-    if not isinstance(l, int) or l < 1:
-        raise ValueError("l must be a positive integer.")
-
-    def iter_hyperedges(H):
-        if hasattr(H, "edges") and hasattr(H.edges, "members"):
-            members = H.edges.members()
-            if hasattr(members, "items"):
-                for _, nodes in members.items():
-                    yield tuple(nodes)
-                return
-            for nodes in members:
-                yield tuple(nodes)
-            return
-
-        if hasattr(H, "edges"):
-            for e in H.edges:
-                yield tuple(H.edges.members(e))
-            return
-
-        raise TypeError("Could not extract hyperedges from H.")
-
-    subset_to_id: dict[tuple, int] = {}
-    next_id = 0
-
-    # Store each undirected edge only once as (min_id, max_id)
-    edge_set: set[tuple[int, int]] = set()
-
-    for edge_nodes in tqdm(iter_hyperedges(H), desc="Processing hyperedges"):
-        m = len(edge_nodes)
-        if m < l:
-            continue
-
-        n_subsets = comb(m, l)
-        if max_subsets_per_edge is not None and n_subsets > max_subsets_per_edge:
-            continue
-
-        subset_ids = []
-        for subset in itertools.combinations(edge_nodes, l):
-            key = tuple(sorted(subset)) if sort_nodes else tuple(subset)
-            node_id = subset_to_id.get(key)
-            if node_id is None:
-                node_id = next_id
-                subset_to_id[key] = node_id
-                next_id += 1
-            subset_ids.append(node_id)
-
-        # Add clique edges among all l-subsets of this hyperedge
-        for u, v in itertools.combinations(subset_ids, 2):
-            if u > v:
-                u, v = v, u
-            edge_set.add((u, v))
-
-    n = next_id
-
-    print(f"Building NetworkX graph directly from {len(edge_set)} undirected edges...")
+    if l < 1:
+        raise ValueError("l must be a positive integer")
 
     G = nx.Graph()
-    print(f"Adding {n} nodes and {len(edge_set)} edges to the graph...")
-    G.add_nodes_from(range(n))
-    print("Adding edges...")
-    # G.add_edges_from(edge_set)
-    for u, v in tqdm(edge_set, desc="Adding edges to graph", mininterval=1.0):
-        G.add_edge(u, v)
+    max_size = 25 if l == 1 else 7
 
-    # # Attach subset labels as node attributes
-    # id_to_subset = {idx: subset for subset, idx in subset_to_id.items()}
-    # nx.set_node_attributes(G, id_to_subset, name="subset")
+    def sort_key(x: Hashable):
+        return (type(x).__name__, repr(x))
+
+    for eid in tqdm(H.edges, desc=f"Decomposing hypergraph at level {l}"):
+        nodes = tuple(sorted(H.edges.members(eid), key=sort_key))
+        m = len(nodes)
+
+        if m < l or m > max_size:
+            continue
+
+        level_nodes = [tuple(c) for c in combinations(nodes, l)]
+        G.add_nodes_from(level_nodes)
+
+        # Clique over all l-subsets induced by this hyperedge.
+        if len(level_nodes) > 1:
+            G.add_edges_from(combinations(level_nodes, 2))
 
     return G
 
