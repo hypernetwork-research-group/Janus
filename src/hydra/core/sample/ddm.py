@@ -107,7 +107,7 @@ def sample_ddm(
             hypergraph = xgi.Hypergraph(hyperedges)
             hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
             hypergraph['name'] = model_name
-            hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
+            hypergraph['kind'] = "unconstrained" if model.bvae.vertex_encoding else "node set constrained"
 
             generated_hypergraphs.append(hypergraph)
     
@@ -124,7 +124,7 @@ def sample_ddm(
             )
             generated_hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
             generated_hypergraph['name'] = model_name
-            generated_hypergraph['kind'] = "unconditional" if model.bvae.vertex_encoding else "conditional"
+            generated_hypergraph['kind'] = "unconstrained" if model.bvae.vertex_encoding else "node set constrained"
             generated_hypergraphs.append(generated_hypergraph)
 
     return generated_hypergraphs

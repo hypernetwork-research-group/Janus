@@ -61,7 +61,7 @@ def bvae(
 @app.command()
 def ddm(ctx: typer.Context,
         walk_length: Annotated[int, typer.Option("--walk-length", help="Length of each random walk.")] = 256):
-    """Train a conditional model on the specified dataset."""
+    """Train a node set constrained model on the specified dataset."""
     samples_path = ctx.obj['samples_path']
     huggingface_datasets_config = ctx.obj['huggingface_datasets_config']
     dataloader_config = ctx.obj['dataloader_config']

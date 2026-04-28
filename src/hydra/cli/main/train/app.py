@@ -89,7 +89,7 @@ from hydra.core.train.ddm import train_ddm
 def ddm(ctx: typer.Context,
         bvae_ckpt: Annotated[Path, typer.Option("--bvae-ckpt", help="Path to the pretrained BVAE checkpoint to use for the DDM.")],
         T: Annotated[int, typer.Option("--T", help="Number of diffusion steps.")] = 1000):
-    """Train a conditional model on the specified dataset."""
+    """Train a node set constrained model on the specified dataset."""
     random_walk_config: RandomWalkConfig = ctx.obj["random_walk_config"]
     datamodule_config: DataModuleConfig = ctx.obj["datamodule_config"]
     huggingface_datasets_config: HuggingFaceDatasetsConfig = ctx.obj["huggingface_datasets_config"]

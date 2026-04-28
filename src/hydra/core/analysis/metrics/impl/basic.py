@@ -267,7 +267,7 @@ class NormalizedMutualInformation(Metric):
 class HyperedgeRecovery(Metric):
 
     def compute(self, hg: HypergraphLazyParser) -> MetricResult:
-        if hg['kind'] not in ['conditional', 'reconstruction', 'reference']:
+        if hg['kind'] not in ['node set constrained', 'reconstruction', 'reference']:
             return []
         xgi_hypergraph = hg.xgi_hypergraph
         hyperedges = list(map(list, map(sorted, xgi_hypergraph.edges.members())))

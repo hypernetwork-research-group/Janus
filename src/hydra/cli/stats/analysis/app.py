@@ -56,6 +56,8 @@ def compare(
     for path, results in tqdm(results_discovery(root_dir)):
         print(path)
         dataset_name = results['dataset_name']
+        if 'daqh/' not in dataset_name:
+            dataset_name = 'daqh/' + dataset_name
         reference = references[dataset_name]
         comparison_path = path.with_suffix(".comparison.json")
         comparison_results = dict()
