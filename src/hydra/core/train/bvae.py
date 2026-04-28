@@ -46,7 +46,7 @@ def train_bvae(
     # Here we should determine the model name:
     # BVAE-HyDRA-{model_size}/vertex_encoding
 
-    model_name = f"BVAE-HyDRA{'-V' if vertex_encoding else ''}-{model_size_config}"
+    model_name = f"Janus{'' if vertex_encoding else 'NC'}-BVAE"
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"
 
     trainer = L.Trainer(
