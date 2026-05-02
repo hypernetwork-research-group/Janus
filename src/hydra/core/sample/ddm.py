@@ -38,7 +38,7 @@ def sample_ddm(
         if device == torch.device("cpu"):
             logger.warning("Sampling on CPU may be very slow. Consider moving the model to GPU if possible.")
 
-    model_name = f"DDM-HyDRA{'-V' if model.bvae.vertex_encoding else ''}-{DDM_CONFIGS_REVERSE[model.model_size_config]}" # TODO: This should probably be defined in the model
+    model_name = f"Janus{'' if model.bvae.vertex_encoding else 'NC'}" # TODO: This should probably be defined in the model
 
     dataset = load_dataset(
         huggingface_datasets_config.dataset_name,

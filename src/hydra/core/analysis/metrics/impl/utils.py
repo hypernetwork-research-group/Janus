@@ -615,3 +615,137 @@ def count_closed_triangles(
             triangles += partial
 
     return triangles
+
+from collections import defaultdict
+from itertools import combinations
+from typing import Any, Dict, Hashable, Optional, Tuple, Union
+
+
+def hypertrans(
+    H,
+    *,
+    return_wedge_scores: bool = False,
+) -> Union[float, Tuple[float, Dict[Tuple[Hashable, Hashable], float]]]:
+    """
+    Compute HyperTrans for an undirected xgi.Hypergraph.
+
+    This implements:
+        T(G) = (1 / |W|) * sum_{w in W} T(w)
+
+    where W is the set of hyperwedges, i.e. intersecting pairs of
+    hyperedges (ei, ej) such that neither is a subset of the other.
+
+    For a hyperwedge w = {ei, ej}:
+        L = ei \\ ej
+        R = ej \\ ei
+        P(w) = L x R
+
+    The hyperwedge-level HyperTrans score is:
+        T(w) = (1 / |P(w)|) * sum_{(u, v) in P(w)}
+               max_{e in E} f(w, e) * 1[u in e and v in e]
+
+    The default group interaction score f is Eq. (5) from the paper:
+        f(w, e) =
+            |L ∩ e| * |R ∩ e|
+            -----------------------------------------------
+            |L ∪ (e \\ R)| * |R ∪ (e \\ L)|
+
+    Parameters
+    ----------
+    H : xgi.Hypergraph
+        Input undirected hypergraph.
+    return_wedge_scores : bool, default False
+        If True, also return a dictionary mapping hyperedge-id pairs
+        to their hyperwedge-level HyperTrans scores.
+
+    Returns
+    -------
+    float
+        Global HyperTrans score. Returns 0.0 if the hypergraph has
+        no hyperwedges.
+    dict, optional
+        Only returned when return_wedge_scores=True. Keys are
+        (edge_id_1, edge_id_2), values are hyperwedge scores.
+    """
+
+    # XGI edge IDs and edge member sets.
+    edge_ids = list(H.edges)
+    edges = {eid: set(H.edges.members(eid)) for eid in edge_ids}
+
+    # Node -> incident edge IDs, used both to enumerate intersecting
+    # hyperedge pairs and to find candidate hyperedges efficiently.
+    node_to_edges = defaultdict(set)
+    for eid, members in edges.items():
+        for node in members:
+            node_to_edges[node].add(eid)
+
+    # Enumerate hyperedge pairs that intersect.
+    intersecting_pairs = set()
+    for incident_edges in node_to_edges.values():
+        for e1, e2 in combinations(sorted(incident_edges, key=repr), 2):
+            intersecting_pairs.add((e1, e2))
+
+    wedge_scores: Dict[Tuple[Hashable, Hashable], float] = {}
+
+    for e1, e2 in intersecting_pairs:
+        E1 = edges[e1]
+        E2 = edges[e2]
+
+        # Hyperwedge condition: intersecting, and neither is subset of the other.
+        # Intersection is guaranteed by construction, but keep this for clarity.
+        if not (E1 & E2):
+            continue
+        if E1 <= E2 or E2 <= E1:
+            continue
+
+        L = E1 - E2
+        R = E2 - E1
+
+        # For a valid hyperwedge both wings are nonempty.
+        if not L or not R:
+            continue
+
+        # Phi[(u, v)] stores the best score found for the cross-wing pair.
+        # Use ordered tuples for deterministic dictionary keys.
+        phi = {(u, v): 0.0 for u in L for v in R}
+
+        # Candidate hyperedges that intersect both wings.
+        left_candidates = set().union(*(node_to_edges[u] for u in L))
+        right_candidates = set().union(*(node_to_edges[v] for v in R))
+        candidates = left_candidates & right_candidates
+
+        for c in candidates:
+            Ec = edges[c]
+            Lcap = L & Ec
+            Rcap = R & Ec
+
+            if not Lcap or not Rcap:
+                continue
+
+            # Eq. (5) denominator.
+            denom_left = len(L | (Ec - R))
+            denom_right = len(R | (Ec - L))
+            denom = denom_left * denom_right
+
+            if denom == 0:
+                continue
+
+            f = (len(Lcap) * len(Rcap)) / denom
+
+            # Fast-HyperTrans update: only cross-wing pairs covered by c.
+            for u in Lcap:
+                for v in Rcap:
+                    if f > phi[(u, v)]:
+                        phi[(u, v)] = f
+
+        wedge_scores[(e1, e2)] = sum(phi.values()) / (len(L) * len(R))
+
+    if not wedge_scores:
+        global_score = 0.0
+    else:
+        global_score = sum(wedge_scores.values()) / len(wedge_scores)
+
+    if return_wedge_scores:
+        return global_score, wedge_scores
+
+    return global_score
