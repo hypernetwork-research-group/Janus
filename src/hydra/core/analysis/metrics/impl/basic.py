@@ -369,7 +369,7 @@ class HyperedgeSizeDistribution(Metric):
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
         return discrete_wasserstein_distance(a, b)
 
-from .utils import hypertrans
+from .utils import hypertrans, hyperlap_overlapness
 
 @register_metric()
 class HyperTrans(Metric):
@@ -381,6 +381,26 @@ class HyperTrans(Metric):
 
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
         return abs(a - b)
+
+@register_metric()
+class HypergraphOverlapness(Metric):
+
+    def compute(self, hg):
+        xgi_hypergraph = hg.xgi_hypergraph
+        global_overlapness = hyperlap_overlapness(xgi_hypergraph, mode='global')
+        egonet_overlapness = hyperlap_overlapness(xgi_hypergraph, mode='egonet_mean')
+        return {
+            "global_overlapness": global_overlapness,
+            "egonet_overlapness": egonet_overlapness
+        }
+
+    def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
+        global_diff = abs(a["global_overlapness"] - b["global_overlapness"])
+        egonet_diff = abs(a["egonet_overlapness"] - b["egonet_overlapness"])
+        return {
+            "global_overlapness": global_diff,
+            "egonet_overlapness": egonet_diff
+        }
 
 # Structural Patterns
 

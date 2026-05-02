@@ -621,131 +621,311 @@ from itertools import combinations
 from typing import Any, Dict, Hashable, Optional, Tuple, Union
 
 
+from collections import defaultdict
+from itertools import combinations
+import multiprocessing as mp
+import os
+from typing import Dict, Hashable, Iterable, Optional, Tuple, Union
+
+
+# Globals used by worker processes.
+# On Unix-like systems, using "fork" lets workers share these read-only objects
+# copy-on-write, which is much more memory efficient than sending them per task.
+_HT_EDGES = None
+_HT_NODE_TO_EDGES = None
+
+
+def _init_hypertrans_worker(edges, node_to_edges):
+    global _HT_EDGES, _HT_NODE_TO_EDGES
+    _HT_EDGES = edges
+    _HT_NODE_TO_EDGES = node_to_edges
+
+
+def _hyperwedge_score_worker(pair):
+    """
+    Worker for one hyperedge pair.
+
+    Returns
+    -------
+    None
+        If the pair is not a valid hyperwedge.
+    tuple
+        ((e1, e2), score) for a valid hyperwedge.
+    """
+    e1, e2 = pair
+
+    edges = _HT_EDGES
+    node_to_edges = _HT_NODE_TO_EDGES
+
+    E1 = edges[e1]
+    E2 = edges[e2]
+
+    # Hyperwedge condition: intersecting, and neither edge contains the other.
+    if not (E1 & E2):
+        return None
+    if E1 <= E2 or E2 <= E1:
+        return None
+
+    L = E1 - E2
+    R = E2 - E1
+
+    if not L or not R:
+        return None
+
+    # Candidate hyperedges that contain at least one node from each wing.
+    # Built incrementally to avoid large temporary lists.
+    left_candidates = set()
+    for u in L:
+        left_candidates.update(node_to_edges[u])
+
+    right_candidates = set()
+    for v in R:
+        right_candidates.update(node_to_edges[v])
+
+    candidates = left_candidates & right_candidates
+
+    # Instead of storing phi for every pair in L x R, accumulate only the
+    # cross-wing pairs that are actually covered by candidate hyperedges.
+    best_pair_scores = {}
+
+    for c in candidates:
+        Ec = edges[c]
+
+        Lcap = L & Ec
+        if not Lcap:
+            continue
+
+        Rcap = R & Ec
+        if not Rcap:
+            continue
+
+        denom_left = len(L | (Ec - R))
+        denom_right = len(R | (Ec - L))
+        denom = denom_left * denom_right
+
+        if denom == 0:
+            continue
+
+        f = (len(Lcap) * len(Rcap)) / denom
+
+        for u in Lcap:
+            for v in Rcap:
+                key = (u, v)
+                old = best_pair_scores.get(key, 0.0)
+                if f > old:
+                    best_pair_scores[key] = f
+
+    score = sum(best_pair_scores.values()) / (len(L) * len(R))
+    return (e1, e2), score
+
+
+def _intersecting_edge_pairs(edge_ids, node_to_edges) -> Iterable[Tuple[Hashable, Hashable]]:
+    """
+    Stream unique intersecting hyperedge pairs without materializing all pairs
+    upfront. The `seen` set is the main unavoidable memory cost if we want to
+    avoid duplicate pair processing.
+    """
+    seen = set()
+
+    for incident_edges in node_to_edges.values():
+        if len(incident_edges) < 2:
+            continue
+
+        # repr-based sorting supports arbitrary hashable edge IDs.
+        for e1, e2 in combinations(sorted(incident_edges, key=repr), 2):
+            pair = (e1, e2)
+            if pair not in seen:
+                seen.add(pair)
+                yield pair
+
+
 def hypertrans(
     H,
     *,
     return_wedge_scores: bool = False,
+    chunksize: int = 256,
 ) -> Union[float, Tuple[float, Dict[Tuple[Hashable, Hashable], float]]]:
     """
-    Compute HyperTrans for an undirected xgi.Hypergraph.
+    Parallel memory-conscious computation of HyperTrans for an xgi.Hypergraph.
 
-    This implements:
-        T(G) = (1 / |W|) * sum_{w in W} T(w)
-
-    where W is the set of hyperwedges, i.e. intersecting pairs of
-    hyperedges (ei, ej) such that neither is a subset of the other.
-
-    For a hyperwedge w = {ei, ej}:
-        L = ei \\ ej
-        R = ej \\ ei
-        P(w) = L x R
-
-    The hyperwedge-level HyperTrans score is:
-        T(w) = (1 / |P(w)|) * sum_{(u, v) in P(w)}
-               max_{e in E} f(w, e) * 1[u in e and v in e]
-
-    The default group interaction score f is Eq. (5) from the paper:
-        f(w, e) =
-            |L ∩ e| * |R ∩ e|
-            -----------------------------------------------
-            |L ∪ (e \\ R)| * |R ∪ (e \\ L)|
+    Uses number of processors = os.cpu_count() - 1, with a minimum of 1.
 
     Parameters
     ----------
     H : xgi.Hypergraph
         Input undirected hypergraph.
     return_wedge_scores : bool, default False
-        If True, also return a dictionary mapping hyperedge-id pairs
-        to their hyperwedge-level HyperTrans scores.
+        If True, also return a dictionary mapping hyperedge-id pairs to
+        hyperwedge-level HyperTrans scores. This is less memory efficient.
+    chunksize : int, default 256
+        Number of hyperedge-pair tasks sent to each worker batch. Larger values
+        reduce multiprocessing overhead; smaller values improve load balancing.
 
     Returns
     -------
     float
-        Global HyperTrans score. Returns 0.0 if the hypergraph has
-        no hyperwedges.
+        Global HyperTrans score. Returns 0.0 if the hypergraph has no
+        hyperwedges.
     dict, optional
-        Only returned when return_wedge_scores=True. Keys are
-        (edge_id_1, edge_id_2), values are hyperwedge scores.
+        Returned only when return_wedge_scores=True.
     """
 
-    # XGI edge IDs and edge member sets.
-    edge_ids = list(H.edges)
-    edges = {eid: set(H.edges.members(eid)) for eid in edge_ids}
+    n_workers = max(1, (os.cpu_count() or 1) - 1)
 
-    # Node -> incident edge IDs, used both to enumerate intersecting
-    # hyperedge pairs and to find candidate hyperedges efficiently.
-    node_to_edges = defaultdict(set)
+    edge_ids = list(H.edges)
+    edges = {eid: frozenset(H.edges.members(eid)) for eid in edge_ids}
+
+    node_to_edges_mutable = defaultdict(set)
     for eid, members in edges.items():
         for node in members:
-            node_to_edges[node].add(eid)
+            node_to_edges_mutable[node].add(eid)
 
-    # Enumerate hyperedge pairs that intersect.
-    intersecting_pairs = set()
-    for incident_edges in node_to_edges.values():
-        for e1, e2 in combinations(sorted(incident_edges, key=repr), 2):
-            intersecting_pairs.add((e1, e2))
+    # Convert to plain dict of frozensets so worker state is read-only-ish and
+    # more compact than defaultdict(set).
+    node_to_edges = {
+        node: frozenset(incident_edges)
+        for node, incident_edges in node_to_edges_mutable.items()
+    }
 
-    wedge_scores: Dict[Tuple[Hashable, Hashable], float] = {}
+    pair_iter = _intersecting_edge_pairs(edge_ids, node_to_edges)
 
-    for e1, e2 in intersecting_pairs:
-        E1 = edges[e1]
-        E2 = edges[e2]
+    total_score = 0.0
+    n_wedges = 0
+    wedge_scores = {} if return_wedge_scores else None
 
-        # Hyperwedge condition: intersecting, and neither is subset of the other.
-        # Intersection is guaranteed by construction, but keep this for clarity.
-        if not (E1 & E2):
-            continue
-        if E1 <= E2 or E2 <= E1:
-            continue
+    # Prefer fork where available for copy-on-write memory sharing.
+    # Fall back to the platform default otherwise.
+    try:
+        ctx = mp.get_context("fork")
+    except ValueError:
+        ctx = mp.get_context()
 
-        L = E1 - E2
-        R = E2 - E1
-
-        # For a valid hyperwedge both wings are nonempty.
-        if not L or not R:
-            continue
-
-        # Phi[(u, v)] stores the best score found for the cross-wing pair.
-        # Use ordered tuples for deterministic dictionary keys.
-        phi = {(u, v): 0.0 for u in L for v in R}
-
-        # Candidate hyperedges that intersect both wings.
-        left_candidates = set().union(*(node_to_edges[u] for u in L))
-        right_candidates = set().union(*(node_to_edges[v] for v in R))
-        candidates = left_candidates & right_candidates
-
-        for c in candidates:
-            Ec = edges[c]
-            Lcap = L & Ec
-            Rcap = R & Ec
-
-            if not Lcap or not Rcap:
+    with ctx.Pool(
+        processes=n_workers,
+        initializer=_init_hypertrans_worker,
+        initargs=(edges, node_to_edges),
+    ) as pool:
+        for result in pool.imap_unordered(
+            _hyperwedge_score_worker,
+            pair_iter,
+            chunksize=chunksize,
+        ):
+            if result is None:
                 continue
 
-            # Eq. (5) denominator.
-            denom_left = len(L | (Ec - R))
-            denom_right = len(R | (Ec - L))
-            denom = denom_left * denom_right
+            pair, score = result
+            total_score += score
+            n_wedges += 1
 
-            if denom == 0:
-                continue
+            if return_wedge_scores:
+                wedge_scores[pair] = score
 
-            f = (len(Lcap) * len(Rcap)) / denom
-
-            # Fast-HyperTrans update: only cross-wing pairs covered by c.
-            for u in Lcap:
-                for v in Rcap:
-                    if f > phi[(u, v)]:
-                        phi[(u, v)] = f
-
-        wedge_scores[(e1, e2)] = sum(phi.values()) / (len(L) * len(R))
-
-    if not wedge_scores:
-        global_score = 0.0
-    else:
-        global_score = sum(wedge_scores.values()) / len(wedge_scores)
+    global_score = total_score / n_wedges if n_wedges else 0.0
 
     if return_wedge_scores:
         return global_score, wedge_scores
 
     return global_score
+
+from typing import Dict, Hashable, Literal, Tuple, Union
+
+def hyperlap_overlapness(
+    H,
+    *,
+    mode: Literal["global", "egonet_mean"] = "egonet_mean",
+    return_node_scores: bool = False,
+) -> Union[float, Tuple[float, Dict[Hashable, float]]]:
+    """
+    Compute the overlapness measure from:
+
+        Lee, Choe, Shin.
+        "How Do Hyperedges Overlap in Real-World Hypergraphs?
+        -- Patterns, Measures, and Generators" WWW 2021.
+
+    The overlapness of a set of hyperedges E is:
+
+        o(E) = sum_{e in E} |e| / | union_{e in E} e |
+
+    This function supports two natural interpretations for an xgi.Hypergraph:
+
+    1. mode="egonet_mean"  [default]
+       Computes overlapness for every node egonet E_{v}, i.e. the set
+       of hyperedges containing node v, then returns the mean egonet
+       overlapness over nodes.
+
+       This corresponds to the egonet-level overlapness used in the paper.
+
+    2. mode="global"
+       Computes overlapness once over the entire hyperedge set of H.
+
+    Parameters
+    ----------
+    H : xgi.Hypergraph
+        Input hypergraph.
+
+    mode : {"egonet_mean", "global"}, default "egonet_mean"
+        Which overlapness quantity to compute.
+
+    return_node_scores : bool, default False
+        Only used for mode="egonet_mean".
+        If True, also return a dictionary mapping each node to its
+        egonet overlapness.
+
+    Returns
+    -------
+    float
+        The requested overlapness score.
+
+    dict, optional
+        If return_node_scores=True and mode="egonet_mean", returns
+        node-level egonet overlapness values.
+    """
+
+    edge_ids = list(H.edges)
+    edge_members = {eid: set(H.edges.members(eid)) for eid in edge_ids}
+
+    if mode == "global":
+        if not edge_members:
+            score = 0.0
+        else:
+            total_hyperedge_size = sum(len(e) for e in edge_members.values())
+            covered_nodes = set().union(*edge_members.values()) if edge_members else set()
+            score = total_hyperedge_size / len(covered_nodes) if covered_nodes else 0.0
+
+        if return_node_scores:
+            raise ValueError("return_node_scores=True is only valid for mode='egonet_mean'.")
+        return score
+
+    if mode != "egonet_mean":
+        raise ValueError("mode must be either 'egonet_mean' or 'global'.")
+
+    node_scores: Dict[Hashable, float] = {}
+
+    for node in H.nodes:
+        incident_edge_ids = list(H.nodes.memberships(node))
+
+        if not incident_edge_ids:
+            node_scores[node] = 0.0
+            continue
+
+        incident_edges = [edge_members[eid] for eid in incident_edge_ids]
+
+        total_hyperedge_size = sum(len(e) for e in incident_edges)
+        covered_nodes = set().union(*incident_edges)
+
+        node_scores[node] = (
+            total_hyperedge_size / len(covered_nodes)
+            if covered_nodes
+            else 0.0
+        )
+
+    graph_score = (
+        sum(node_scores.values()) / len(node_scores)
+        if node_scores
+        else 0.0
+    )
+
+    if return_node_scores:
+        return graph_score, node_scores
+
+    return graph_score
