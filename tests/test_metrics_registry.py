@@ -1,4 +1,4 @@
-"""Tests for hydra.core.analysis.metrics.registry."""
+"""Tests for janus.core.analysis.metrics.registry."""
 import pytest
 
 # Importing builtins triggers registration of all built-in metrics

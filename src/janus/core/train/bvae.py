@@ -44,7 +44,7 @@ def train_bvae(
     # Since vertex encoding requires contrastive loss over nodes in the batch, we automatically set drop_last=True when vertex_encoding is enabled to ensure consistent batch sizes.
 
     # Here we should determine the model name:
-    # BVAE-HyDRA-{model_size}/vertex_encoding
+    # BVAE-Janus-{model_size}/vertex_encoding
 
     model_name = f"Janus{'' if vertex_encoding else 'NC'}-BVAE"
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"

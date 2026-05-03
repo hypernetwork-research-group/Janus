@@ -4,8 +4,8 @@
 
 This repository contains a Python package that provides the following code:
 
-- 🔥 PyTorch implementation of HyDRA $\beta\text{-VAE}$ and HyDRA DDM;
-- ⚡️ Hydra-* training script using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/);
+- 🔥 PyTorch implementation of Janus $\beta\text{-VAE}$ and Janus DDM;
+- ⚡️ Janus-* training script using [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/);
 - 👨‍💻 Hypergraph Analysis script to compare generated vs target dataset hypergraphs;
 - 📄 Results report script to construct table and charts from generation results;
 - ⌨️ A simple command line interface that can be used to launch training and sampling scripts. 
@@ -13,7 +13,7 @@ This repository contains a Python package that provides the following code:
 ## Setup
 
 ```bash
-pip install git+https://github.com/daqh/HyDRA
+pip install git+https://github.com/daqh/Janus
 ```
 
 **Requirements**. Additionally to the code provided in this repository, you should install `torch` and `lightning`.
@@ -21,18 +21,18 @@ pip install git+https://github.com/daqh/HyDRA
 ## Training
 
 ```bash
-hydra [DATASET] <OPTIONS> train <OPTIONS> bvae <OPTIONS> --vertex-encoding/--no-vertex-encoding
+janus [DATASET] <OPTIONS> train <OPTIONS> bvae <OPTIONS> --vertex-encoding/--no-vertex-encoding
 ```
 
 and then
 
 ```
-hydra [DATASET] train <OPTIONS> ddm <OPTIONS> --bvae-ckpt
+janus [DATASET] train <OPTIONS> ddm <OPTIONS> --bvae-ckpt
 ```
 
 ### Model size
 
-The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` option of the `hydra train` command. The following models sizes are available.
+The size of both $\beta\text{-VAE}$ and DDM can be set using the `--model-size` option of the `janus train` command. The following models sizes are available.
 
 <table>
   <caption>
@@ -113,7 +113,7 @@ The learning rate is determined using a learning rate finder strategy.
 ![Generated Hypergraph Evaluation Metrics](/assets/figures/generated-hypergraph-evaluation-metrics.png)
 
 ```bash
-hydra-stats analysis <OPTIONS>
+janus-stats analysis <OPTIONS>
 ```
 
 ## Compare
@@ -121,20 +121,20 @@ hydra-stats analysis <OPTIONS>
 First of all you need to download the datasets and analyze them:
 
 ```bash
-hydra-stats parse [DATASET_NAME]
-hydra-stats analyze --root-dir references
+janus-stats parse [DATASET_NAME]
+janus-stats analyze --root-dir references
 ```
 
 At this point, you can perform analysis over all hypergraphs in the `samples/` directory:
 
 ```bash
-hydra-stats analyze
+janus-stats analyze
 ```
 
 Finally, run the comparison script to compare each sample with its relative reference.
 
 ```bash
-hydra-stats compare
+janus-stats compare
 ```
 
 ## Reproducibility
@@ -144,14 +144,14 @@ hydra-stats compare
 In order to run the training configuration we used in our paper, run the following commands to train both models:
 
 ```bash
-hydra --batch-size 32 [DATASET] train --model-size S bvae
-hydra --batch-size 32 --val-size 0 [DATASET] train --model-size S --samples-per-hyperedge 2 ddm --bvae-ckpt logs/[DATASET]/BVAE-HyDRA-S/logs/version_0/checkpoints/best.ckpt
+janus --batch-size 32 [DATASET] train --model-size S bvae
+janus --batch-size 32 --val-size 0 [DATASET] train --model-size S --samples-per-hyperedge 2 ddm --bvae-ckpt logs/[DATASET]/BVAE-Janus-S/logs/version_0/checkpoints/best.ckpt
 ```
 
 ### Sampling
 
 ```bash
-hydra --batch-size 32 [DATASET] sample --ckpt logs/[DATASET]/logs/version_0/DDM-HyDRA-S/checkpoints/last.ckpt ddm
+janus --batch-size 32 [DATASET] sample --ckpt logs/[DATASET]/logs/version_0/DDM-Janus-S/checkpoints/last.ckpt ddm
 ```
 
 ## Datasets
@@ -213,7 +213,7 @@ When running the training script `full` is the default split for train/val/predi
 If the split is equal for train/val, the `--val-size` option is used to perform train/val split across that dataset, otherwise this option is ignored.
 
 ```bash
-hydra daqh/email-Enron train --train-split train --val-split val --predict-split predict bvae
+janus daqh/email-Enron train --train-split train --val-split val --predict-split predict bvae
 ```
 
 ### Use different datasets

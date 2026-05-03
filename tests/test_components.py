@@ -1,4 +1,4 @@
-"""Tests for hydra.core.models.components."""
+"""Tests for janus.core.models.components."""
 import pytest
 import torch
 import torch.nn as nn

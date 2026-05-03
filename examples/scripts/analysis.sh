@@ -1,8 +1,8 @@
-hydra-stats prepare daqh/email-Enron
-hydra-stats prepare daqh/email-Eu
-hydra-stats prepare daqh/contact-high-school
-hydra-stats prepare daqh/contact-primary-school
-hydra-stats prepare daqh/NDC-classes
-hydra-stats analyze --root-dir references
-hydra-stats analyze
-hydra-stats compare
+janus-stats prepare daqh/email-Enron
+janus-stats prepare daqh/email-Eu
+janus-stats prepare daqh/contact-high-school
+janus-stats prepare daqh/contact-primary-school
+janus-stats prepare daqh/NDC-classes
+janus-stats analyze --root-dir references
+janus-stats analyze
+janus-stats compare

@@ -1,4 +1,4 @@
-"""Tests for hydra.core.analysis.utils."""
+"""Tests for janus.core.analysis.utils."""
 import json
 import pytest
 import networkx as nx

@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the hydra test suite."""
+"""Shared pytest fixtures for the janus test suite."""
 import pytest
 import xgi
 import numpy as np

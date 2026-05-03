@@ -1,4 +1,4 @@
-"""Tests for hydra.core.models.utils."""
+"""Tests for janus.core.models.utils."""
 import pytest
 import torch
 

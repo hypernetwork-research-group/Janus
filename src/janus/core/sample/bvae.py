@@ -23,7 +23,7 @@ def sample_bvae(
 
     model = HypergraphBetaVAE.load_from_checkpoint(ckpt_path)
 
-    model_name = f"BVAE-HyDRA{'-V' if model.vertex_encoding else ''}-{BVAE_CONFIGS_REVERSE[model.model_size_config]}"
+    model_name = f"BVAE-Janus{'' if model.vertex_encoding else 'NC'}-{BVAE_CONFIGS_REVERSE[model.model_size_config]}"
 
     trainer = L.Trainer(
         default_root_dir=f"logs/{huggingface_datasets_config.dataset_name}/{model_name}/logs/version_0", # TODO: remove this hardcoded path

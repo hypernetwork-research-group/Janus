@@ -1,4 +1,4 @@
-"""Tests for the lightweight built-in metrics in hydra.core.analysis.metrics.impl.basic."""
+"""Tests for the lightweight built-in metrics in janus.core.analysis.metrics.impl.basic."""
 import pytest
 import xgi
 

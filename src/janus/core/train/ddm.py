@@ -44,7 +44,7 @@ def train_ddm(
                         drop_last=bvae.vertex_encoding or dataloader_config.drop_last)
 
     # Here we should determine the model name:
-    # DDM-HyDRA-{model_size}/vertex_encoding
+    # DDM-Janus-{model_size}/vertex_encoding
 
     model_name = f"Janus{'' if bvae.vertex_encoding else 'NC'}" # TODO: This should probably be defined in the model
     default_root_dir = f"logs/{huggingface_datasets_config.dataset_name}/{model_name}"

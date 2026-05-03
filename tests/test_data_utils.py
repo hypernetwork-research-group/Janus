@@ -1,4 +1,4 @@
-"""Tests for hydra.core.data.utils."""
+"""Tests for janus.core.data.utils."""
 import random
 import networkx as nx
 import numpy as np
