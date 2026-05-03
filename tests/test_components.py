@@ -3,7 +3,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from hydra.core.models.components import (
+from janus.core.models.components import (
     BatchedHypergraphConvAttn,
     DiT,
     DiTBlock,

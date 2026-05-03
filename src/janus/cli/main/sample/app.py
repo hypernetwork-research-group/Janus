@@ -6,9 +6,9 @@ from os import makedirs
 import typer
 import xgi
 
-from hydra.core.sample.bvae import sample_bvae
-from hydra.core.sample.ddm import sample_ddm
-from hydra.core.configs import RandomWalkConfig
+from janus.core.sample.bvae import sample_bvae
+from janus.core.sample.ddm import sample_ddm
+from janus.core.configs import RandomWalkConfig
 from .utils import get_current_sample_path
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")

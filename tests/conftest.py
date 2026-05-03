@@ -4,7 +4,7 @@ import xgi
 import numpy as np
 from scipy import sparse
 
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.analysis.utils import HypergraphLazyParser
 
 
 @pytest.fixture

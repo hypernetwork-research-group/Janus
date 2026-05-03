@@ -7,10 +7,10 @@ import torch
 import xgi
 from datasets import load_dataset
 
-from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
-from hydra.core.models.modules import DiffusionTransformer
-from hydra.core.models.enums import DDM_CONFIGS_REVERSE
-from hydra.core.data.datamodules import FeaturesDataModule
+from janus.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
+from janus.core.models.modules import DiffusionTransformer
+from janus.core.models.enums import DDM_CONFIGS_REVERSE
+from janus.core.data.datamodules import FeaturesDataModule
 
 logger = logging.getLogger(__name__)
 

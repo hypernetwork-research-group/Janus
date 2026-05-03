@@ -2,9 +2,9 @@ import xgi
 import networkx as nx
 import hypernetx.algorithms.hypergraph_modularity as hmod
 
-from hydra.core.analysis.metrics.registry import register_metric
-from hydra.core.analysis.metrics.protocols import Metric, MetricResult
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.analysis.metrics.registry import register_metric
+from janus.core.analysis.metrics.protocols import Metric, MetricResult
+from janus.core.analysis.utils import HypergraphLazyParser
 
 @register_metric()
 class DatasetName(Metric):
@@ -330,7 +330,7 @@ class NumberOfOpenTriangles(Metric):
     def compare(self, a: MetricResult, b: MetricResult) -> MetricResult:
         return abs(a - b)
 
-from hydra.core.models.components import StructureOnlyHypergraphRegressor
+from janus.core.models.components import StructureOnlyHypergraphRegressor
 
 class GeneratedHypergraphDetection(Metric):
 

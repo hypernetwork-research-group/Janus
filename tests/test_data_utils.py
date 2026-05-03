@@ -6,7 +6,7 @@ import pytest
 import xgi
 from scipy import sparse
 
-from hydra.core.data.utils import (
+from janus.core.data.utils import (
     hypergraph_laplacian_zhou,
     metropolis_hastings_biased_random_walk,
     patch_nodes,

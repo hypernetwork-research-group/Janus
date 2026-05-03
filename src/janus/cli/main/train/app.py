@@ -4,8 +4,8 @@ from pathlib import Path
 
 import typer
 
-from hydra.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig, RandomWalkConfig
-from hydra.core.models.enums import ModelSize
+from janus.core.configs import DataModuleConfig, DataLoaderConfig, TrainerConfig, HuggingFaceDatasetsConfig, OptimizerConfig, EarlyStoppingConfig, RandomWalkConfig
+from janus.core.models.enums import ModelSize
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(help="MyCLI: a tiny example Typer app.")
@@ -53,7 +53,7 @@ def train_callback(
     ctx.obj["early_stopping_config"] = EarlyStoppingConfig(patience=patience)
     ctx.obj["ckpt_path"] = ckpt_path
 
-from hydra.core.train.bvae import train_bvae
+from janus.core.train.bvae import train_bvae
 
 @app.command()
 def bvae(ctx: typer.Context,
@@ -83,7 +83,7 @@ def bvae(ctx: typer.Context,
               latent_dim=latent_dim,
               ckpt_path=ckpt_path)
 
-from hydra.core.train.ddm import train_ddm
+from janus.core.train.ddm import train_ddm
 
 @app.command()
 def ddm(ctx: typer.Context,

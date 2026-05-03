@@ -8,10 +8,10 @@ import xgi
 from sklearn.cluster import KMeans
 import numpy as np
 
-from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig, RandomWalkConfig
-from hydra.core.models.modules import HypergraphBetaVAE
-from hydra.core.models.enums import BVAE_CONFIGS_REVERSE
-from hydra.core.data.datamodules import HypergraphDataModule
+from janus.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig, RandomWalkConfig
+from janus.core.models.modules import HypergraphBetaVAE
+from janus.core.models.enums import BVAE_CONFIGS_REVERSE
+from janus.core.data.datamodules import HypergraphDataModule
 
 def sample_bvae(
     random_walk_config: RandomWalkConfig,

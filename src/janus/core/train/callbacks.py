@@ -6,12 +6,12 @@ from collections import defaultdict
 import torch
 from lightning.pytorch.callbacks import Callback, EMAWeightAveraging
 
-from hydra.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
-from hydra.core.sample.ddm import sample_ddm
-from hydra.core.analysis.quantitative import quantitative_analysis
-from hydra.core.analysis.comparative import comparative_analysis
-from hydra.core.analysis.utils import results_discovery
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.configs import DataLoaderConfig, DataModuleConfig, HuggingFaceDatasetsConfig
+from janus.core.sample.ddm import sample_ddm
+from janus.core.analysis.quantitative import quantitative_analysis
+from janus.core.analysis.comparative import comparative_analysis
+from janus.core.analysis.utils import results_discovery
+from janus.core.analysis.utils import HypergraphLazyParser
 
 logger = logging.getLogger(__name__)
 

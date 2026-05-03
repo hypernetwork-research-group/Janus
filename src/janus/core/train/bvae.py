@@ -4,9 +4,9 @@ import lightning as L
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
 
-from hydra.core.models.modules import HypergraphBetaVAE
-from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
-from hydra.core.data.datamodules import HypergraphDataModule
+from janus.core.models.modules import HypergraphBetaVAE
+from janus.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig, EarlyStoppingConfig
+from janus.core.data.datamodules import HypergraphDataModule
 
 def train_bvae(
     random_walk_config: RandomWalkConfig,

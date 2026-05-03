@@ -15,7 +15,7 @@ from itertools import combinations
 from multiprocessing import Pool
 from tqdm import tqdm
 
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.analysis.utils import HypergraphLazyParser
 
 def feature_vec (H):
     """""""""

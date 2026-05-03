@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from .analysis.app import app as analyze_app
-from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
+from janus.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
 
 app = typer.Typer(help="MyCLI: a tiny example Typer app for stats.")
 app.add_typer(analyze_app)

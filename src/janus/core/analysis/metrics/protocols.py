@@ -1,6 +1,6 @@
 from typing import Protocol, TypeAlias, runtime_checkable, ClassVar
 
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.analysis.utils import HypergraphLazyParser
 
 type MetricResult = int | float | list | dict
 

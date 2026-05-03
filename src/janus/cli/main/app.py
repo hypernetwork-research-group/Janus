@@ -9,7 +9,7 @@ import rich.logging
 
 from .train.app import app as train_app
 from .sample.app import app as sample_app
-from hydra.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
+from janus.core.configs import HuggingFaceDatasetsConfig, DataLoaderConfig, DataModuleConfig
 
 logger = logging.getLogger(__name__)
 

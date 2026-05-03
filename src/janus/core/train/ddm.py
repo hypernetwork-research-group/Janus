@@ -4,9 +4,9 @@ import lightning as L
 from lightning.pytorch.callbacks import BatchSizeFinder, LearningRateFinder, LearningRateMonitor, LambdaCallback, RichProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from hydra.core.models.modules import DiffusionTransformer, HypergraphBetaVAE
-from hydra.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
-from hydra.core.data.datamodules import HypergraphDataModule
+from janus.core.models.modules import DiffusionTransformer, HypergraphBetaVAE
+from janus.core.configs import DataModuleConfig, DataLoaderConfig, RandomWalkConfig, TrainerConfig, HuggingFaceDatasetsConfig, ModelSizeConfig, OptimizerConfig
+from janus.core.data.datamodules import HypergraphDataModule
 from .callbacks import DDMSampleEvaluationCallback
 
 def train_ddm(

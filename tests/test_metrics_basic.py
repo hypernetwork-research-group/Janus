@@ -3,10 +3,10 @@ import pytest
 import xgi
 
 # Trigger metric registration
-import hydra.core.analysis.metrics.builtins  # noqa: F401
+import janus.core.analysis.metrics.builtins  # noqa: F401
 
-from hydra.core.analysis.metrics.registry import get_metric
-from hydra.core.analysis.utils import HypergraphLazyParser
+from janus.core.analysis.metrics.registry import get_metric
+from janus.core.analysis.utils import HypergraphLazyParser
 
 
 # ---------------------------------------------------------------------------

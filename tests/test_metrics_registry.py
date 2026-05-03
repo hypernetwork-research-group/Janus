@@ -2,14 +2,14 @@
 import pytest
 
 # Importing builtins triggers registration of all built-in metrics
-import hydra.core.analysis.metrics.builtins  # noqa: F401
+import janus.core.analysis.metrics.builtins  # noqa: F401
 
-from hydra.core.analysis.metrics.registry import (
+from janus.core.analysis.metrics.registry import (
     get_metric,
     list_metrics,
     register_metric,
 )
-from hydra.core.analysis.metrics.protocols import Metric
+from janus.core.analysis.metrics.protocols import Metric
 
 
 class TestListMetrics:

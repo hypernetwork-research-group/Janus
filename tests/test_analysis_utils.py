@@ -5,7 +5,7 @@ import networkx as nx
 import xgi
 from pathlib import Path
 
-from hydra.core.analysis.utils import file_discovery, HypergraphLazyParser
+from janus.core.analysis.utils import file_discovery, HypergraphLazyParser
 
 
 # ---------------------------------------------------------------------------

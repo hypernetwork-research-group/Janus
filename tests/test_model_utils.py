@@ -2,7 +2,7 @@
 import pytest
 import torch
 
-from hydra.core.models.utils import batch_index_contrastive_loss
+from janus.core.models.utils import batch_index_contrastive_loss
 
 
 class TestBatchIndexContrastiveLoss:
