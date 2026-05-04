@@ -5,7 +5,6 @@ from math import isfinite
 import xgi
 
 def metropolis_hastings_biased_random_walk(args):
-    # TODO: Generalize random walk to k-th order
     G, num_paths, walk_length, p, q, a, r, seed, sources, neighborhoods, members, weights = args
     assert p > 0, "p must be positive"
     assert q > 0, "q must be positive"

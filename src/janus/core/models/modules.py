@@ -51,14 +51,14 @@ class HypergraphBetaVAE(L.LightningModule):
         return [
             ModelCheckpoint(
                 filename="last",
-                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+                every_n_epochs=10,
             ),
             ModelCheckpoint(
                 mode="min",
                 monitor="validation/loss",
                 filename="best",
                 save_top_k=1,
-                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+                every_n_epochs=10,
             ),
             EarlyStopping(
                 monitor="validation/loss",
@@ -320,14 +320,14 @@ class DiffusionTransformer(L.LightningModule):
         return [
             ModelCheckpoint(
                 filename="last",
-                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+                every_n_epochs=10,
             ),
             ModelCheckpoint(
                 mode="min",
                 monitor="training/loss",
                 filename="best",
                 save_top_k=1,
-                every_n_epochs=10, # TODO: Add option to save every n epochs and not only on improvement, to have more checkpoints for analysis. Add this to trainer configuration.
+                every_n_epochs=10,
             ),
             EMAWeightAveraging(
                 decay=0.99,
