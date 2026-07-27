@@ -83,22 +83,23 @@ def sample_bvae(
                 hyperedges.add(nodes)
     hyperedges = list(hyperedges)
 
-    np_embeddings = torch.cat(embeddings, dim=0).cpu().numpy()  # [B, num_nodes, F]
-    np_embeddings = np_embeddings.reshape(-1, np_embeddings.shape[-1]) # [B * num_nodes, F]
-    np_membership_masks = torch.cat(membership_masks, dim=0).cpu().float().numpy()  # [B, num_nodes]
-    np_membership_masks = np_membership_masks.reshape(-1)  # [B * num_nodes]
-    kmeans = KMeans(n_clusters=num_nodes, random_state=0).fit(np_embeddings, sample_weight=np_membership_masks)
-    kmeans_labels = np.array(kmeans.labels_).reshape(-1, num_nodes)  # [B, num_nodes]
+    if model.vertex_encoding:
+        np_embeddings = torch.cat(embeddings, dim=0).cpu().numpy()  # [B, num_nodes, F]
+        np_embeddings = np_embeddings.reshape(-1, np_embeddings.shape[-1]) # [B * num_nodes, F]
+        np_membership_masks = torch.cat(membership_masks, dim=0).cpu().float().numpy()  # [B, num_nodes]
+        np_membership_masks = np_membership_masks.reshape(-1)  # [B * num_nodes]
+        kmeans = KMeans(n_clusters=num_nodes, random_state=0).fit(np_embeddings, sample_weight=np_membership_masks)
+        kmeans_labels = np.array(kmeans.labels_).reshape(-1, num_nodes)  # [B, num_nodes]
 
-    y_true = torch.arange(num_nodes).repeat(kmeans_labels.shape[0], 1)  # [B, num_nodes]
+        y_true = torch.arange(num_nodes).repeat(kmeans_labels.shape[0], 1)  # [B, num_nodes]
 
-    from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, adjusted_mutual_info_score
+        from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score, adjusted_mutual_info_score
 
-    ari = adjusted_rand_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
-    nmi = normalized_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
-    ami = adjusted_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+        ari = adjusted_rand_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+        nmi = normalized_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
+        ami = adjusted_mutual_info_score(y_true.flatten()[np_membership_masks == 1], kmeans_labels.flatten()[np_membership_masks == 1])
 
-    print(f"ARI: {ari:.4f}, NMI: {nmi:.4f}, AMI: {ami:.4f}")
+        print(f"ARI: {ari:.4f}, NMI: {nmi:.4f}, AMI: {ami:.4f}")
 
     hypergraph = xgi.Hypergraph(hyperedges)
     hypergraph['dataset_name'] = huggingface_datasets_config.dataset_name
