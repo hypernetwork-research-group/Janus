@@ -12,7 +12,7 @@ wheels/
 # Additional
 cache/
 /data/
-logs/
+logs*/
 examples/datasets/
 samples*/
 references/
