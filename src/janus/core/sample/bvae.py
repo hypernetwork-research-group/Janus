@@ -63,7 +63,9 @@ def sample_bvae(
         ckpt_path=ckpt_path,
     )
 
-    num_nodes = xgi.from_hif_dict(dataset[0], nodetype=int, edgetype=int).num_nodes
+    ds_hypergraph = xgi.from_hif_dict(dataset[0], nodetype=int, edgetype=int)
+    num_nodes = ds_hypergraph.num_nodes
+    num_hyperedges = ds_hypergraph.num_edges
     embeddings = []
     membership_masks = []
 
@@ -81,6 +83,12 @@ def sample_bvae(
                     continue
                 nodes = tuple(sorted(nodes))
                 hyperedges.add(nodes)
+                if len(hyperedges) >= num_hyperedges:
+                    break
+            if len(hyperedges) >= num_hyperedges:
+                break
+        if len(hyperedges) >= num_hyperedges:
+            break
     hyperedges = list(hyperedges)
 
     if model.vertex_encoding:
